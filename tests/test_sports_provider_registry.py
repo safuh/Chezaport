@@ -1,0 +1,88 @@
+"""Tests for explicit provider registration and competition routing."""
+
+from collections.abc import Sequence
+from datetime import datetime
+
+import pytest
+
+from chezaport.sports.integrations.errors import ProviderConfigurationError
+from chezaport.sports.integrations.protocols import SportsDataProvider
+from chezaport.sports.integrations.registry import (
+    CompetitionProviderRoute,
+    SportsProviderRegistry,
+)
+from chezaport.sports.integrations.schemas import (
+    ProviderCompetition,
+    ProviderFixture,
+    ProviderSeason,
+    ProviderTeam,
+)
+
+
+class StubProvider:
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    @property
+    def provider_name(self) -> str:
+        return self._name
+
+    async def fetch_competitions(self, sport_code: str) -> Sequence[ProviderCompetition]:
+        return []
+
+    async def fetch_seasons(self, competition_external_id: str) -> Sequence[ProviderSeason]:
+        return []
+
+    async def fetch_teams(self, competition_external_id: str) -> Sequence[ProviderTeam]:
+        return []
+
+    async def fetch_fixtures(
+        self,
+        competition_external_id: str,
+        season_external_id: str,
+        *,
+        since: datetime | None = None,
+    ) -> Sequence[ProviderFixture]:
+        return []
+
+
+def test_registry_returns_candidates_in_configured_order() -> None:
+    registry = SportsProviderRegistry()
+    primary = StubProvider("football-data")
+    secondary = StubProvider("alternate")
+    registry.register(primary)
+    registry.register(secondary)
+    registry.set_route(
+        CompetitionProviderRoute(" pl ", ("FOOTBALL-DATA", "Alternate"))
+    )
+
+    candidates = registry.providers_for_competition("PL")
+
+    assert candidates == (primary, secondary)
+
+
+def test_registry_rejects_duplicate_provider_registration() -> None:
+    registry = SportsProviderRegistry()
+    registry.register(StubProvider("football-data"))
+
+    with pytest.raises(ProviderConfigurationError, match="already registered"):
+        registry.register(StubProvider("FOOTBALL-DATA"))
+
+
+def test_registry_rejects_route_with_unregistered_provider() -> None:
+    registry = SportsProviderRegistry()
+
+    with pytest.raises(ProviderConfigurationError, match="unregistered"):
+        registry.set_route(CompetitionProviderRoute("PL", ("missing",)))
+
+
+def test_registry_requires_explicit_competition_route() -> None:
+    registry = SportsProviderRegistry()
+
+    with pytest.raises(ProviderConfigurationError, match="no provider route"):
+        registry.providers_for_competition("PL")
+
+
+def test_route_rejects_duplicate_provider_names() -> None:
+    with pytest.raises(ValueError, match="duplicates"):
+        CompetitionProviderRoute("PL", ("football-data", "FOOTBALL-DATA"))
