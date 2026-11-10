@@ -68,3 +68,12 @@ At the end of each implementation session, update this file and GitHub issue #1 
 - Added schema tests for whitespace normalization, timezone-aware fixture kickoff, distinct home/away teams, and valid season date ranges.
 - Added a free GitHub Actions CI workflow on pushes to `main`/`feature/**` and pull requests targeting `main`. It runs lint, mypy, and pytest across Python 3.11–3.13.
 - Validation is still pending: the workflow has been added but its run result has not yet been inspected, and the suite has not been run locally. M3 remains in progress until adapter contract tests and validation pass.
+
+### 2026-11-10 — external ID resolution service
+
+- Added a canonical entity-type enum for provider mapping targets.
+- Added `ExternalIDResolver`, which resolves provider IDs and registers mappings idempotently inside the caller's SQLAlchemy transaction. It never creates sessions or commits.
+- Added conflict detection for attempts to reassign an existing provider ID or attach a second provider ID to the same canonical entity.
+- Added async SQLite tests for resolution, idempotent registration, and both conflict cases.
+- The resolver relies on database unique constraints as the final concurrency guard; ingestion callers must handle an `IntegrityError` from concurrent duplicate registration and retry their transaction.
+- Validation remains pending because no local checkout or completed CI result has been inspected.
