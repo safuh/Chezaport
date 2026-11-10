@@ -87,3 +87,12 @@ At the end of each implementation session, update this file and GitHub issue #1 
 - Added tests for idempotent competition imports, team updates, per-record failure isolation, and missing canonical country handling.
 - M4 is now in progress. The provider adapter, retry/backoff policy, ingestion CLI, and end-to-end validation remain outstanding.
 - Validation remains pending: these changes were committed remotely; no local test execution or confirmed CI result is available yet.
+
+### 2026-11-10 — lint correction and expanded ingestion
+
+- Fixed the Ruff E501 violation in migration `0004_sports_core.py` by wrapping the two team-membership index declarations across multiple lines. The reported line was a static lint finding; it was not evidence that the database failed while creating the index.
+- Extended the ingestion service to import seasons and fixtures after their referenced competitions and teams have been mapped.
+- Added dependency resolution checks so a fixture cannot be ingested against missing provider mappings or a season belonging to another competition.
+- Normalized fixture kickoff timestamps to UTC before persistence and compare timestamps consistently when SQLite returns timezone-naive values.
+- Added tests for the competition-to-season-to-teams-to-fixture import sequence, idempotent fixture replay, and unresolved fixture dependencies.
+- CI must be rerun on the branch to verify the Ruff correction and the expanded test suite. No passing result is claimed until the workflow completes successfully.
