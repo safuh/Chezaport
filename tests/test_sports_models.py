@@ -18,6 +18,7 @@ def test_sports_tables_are_registered_in_metadata() -> None:
         "players",
         "team_memberships",
         "fixtures",
+        "external_id_mappings",
     }
 
     assert expected <= set(Base.metadata.tables)
