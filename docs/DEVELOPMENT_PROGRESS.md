@@ -96,3 +96,13 @@ At the end of each implementation session, update this file and GitHub issue #1 
 - Normalized fixture kickoff timestamps to UTC before persistence and compare timestamps consistently when SQLite returns timezone-naive values.
 - Added tests for the competition-to-season-to-teams-to-fixture import sequence, idempotent fixture replay, and unresolved fixture dependencies.
 - CI must be rerun on the branch to verify the Ruff correction and the expanded test suite. No passing result is claimed until the workflow completes successfully.
+
+
+### 2026-11-10 — canonical sports bootstrap and fixture integrity
+
+- Added an idempotent bootstrap service for built-in canonical sports and a CLI entry point: `uv run python -m chezaport.sports.seed`.
+- The bootstrap seeds association football only (the currently supported `SportCode`), preserves existing records, participates in the caller-owned transaction, and does not create country records or invent a country catalogue.
+- Added tests for first-time creation, repeat execution, and preserving an existing canonical sport.
+- Tightened fixture ingestion: the competition must resolve to a canonical record, and both participating teams must belong to the same sport as that competition. This closes a cross-sport data-integrity gap not enforced by the current relational schema.
+- The CLI assumes migrations have already been applied. It uses the existing configured database URL and shared engine/session infrastructure; no Redis, task broker, paid service, or new dependency was introduced.
+- Validation is still pending until Ruff, mypy, pytest, and the branch CI workflow have actually completed successfully.

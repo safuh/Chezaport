@@ -284,12 +284,20 @@ class SportsIngestionService:
         away_team_id = await self._mapped_entity_id(
             CanonicalEntityType.TEAM, record.away_team_external_id
         )
+        competition = await self._session.get(Competition, competition_id)
+        if competition is None:
+            raise ExternalIDConflictError(
+                f"mapping points to missing competition {competition_id}"
+            )
         season = await self._session.get(Season, season_id)
         if season is None or season.competition_id != competition_id:
             raise ValueError("fixture season does not belong to its competition")
         for team_id in (home_team_id, away_team_id):
-            if await self._session.get(Team, team_id) is None:
+            team = await self._session.get(Team, team_id)
+            if team is None:
                 raise ExternalIDConflictError(f"mapping points to missing team {team_id}")
+            if team.sport_id != competition.sport_id:
+                raise ValueError("fixture teams and competition must use the same sport")
 
         mapped_id = await self._resolver.resolve(
             provider=self._provider,
