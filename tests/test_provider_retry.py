@@ -95,7 +95,7 @@ async def test_raises_after_maximum_attempts() -> None:
     assert delays == [1.0, 1.5]
 
 
-def test_rejects_invalid_retry_configuration() -> None:
+async def test_rejects_invalid_retry_configuration() -> None:
     async def operation() -> str:
         return "unused"
 
