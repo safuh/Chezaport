@@ -132,8 +132,12 @@ def upgrade() -> None:
             "team_id", "player_id", "joined_on", name="uq_team_memberships_registration"
         ),
     )
-    op.create_index("ix_team_memberships_player_id", "team_memberships", ["player_id"], unique=False)
-    op.create_index("ix_team_memberships_team_id", "team_memberships", ["team_id"], unique=False)
+    op.create_index(
+        "ix_team_memberships_player_id", "team_memberships", ["player_id"], unique=False
+    )
+    op.create_index(
+        "ix_team_memberships_team_id", "team_memberships", ["team_id"], unique=False
+    )
     op.create_table(
         "fixtures",
         sa.Column("id", sa.String(length=36), nullable=False),
