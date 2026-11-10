@@ -54,8 +54,6 @@ class Venue(Base):
     """A physical venue where a fixture can be played."""
 
     __tablename__ = "venues"
-    __table_args__ = (Index("ix_venues_country_id", "country_id"),)
-
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_id)
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     city: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -200,6 +198,11 @@ class Fixture(Base):
         ),
         CheckConstraint(
             "away_score IS NULL OR away_score >= 0", name="ck_fixtures_away_score_nonnegative"
+        ),
+        CheckConstraint(
+            "status IN ('scheduled', 'live', 'halftime', 'finished', 'postponed', "
+            "'suspended', 'abandoned', 'cancelled')",
+            name="ck_fixtures_status_valid",
         ),
         Index("ix_fixtures_kickoff_at", "kickoff_at"),
         Index("ix_fixtures_competition_season", "competition_id", "season_id"),
