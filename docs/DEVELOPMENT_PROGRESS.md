@@ -66,4 +66,5 @@ At the end of each implementation session, update this file and GitHub issue #1 
 - Added typed provider exceptions for configuration, temporary unavailability, and rate-limit responses, including optional retry-after metadata.
 - Added the provider-neutral `external_id_mappings` table and Alembic revision `0005_external_id_mappings`. Provider IDs are mapped to canonical entities without adding vendor columns to the sports tables.
 - Added schema tests for whitespace normalization, timezone-aware fixture kickoff, distinct home/away teams, and valid season date ranges.
-- Validation is still pending: these changes have been committed to the feature branch but have not been run locally or by CI. M3 remains in progress until adapter contract tests and validation pass.
+- Added a free GitHub Actions CI workflow on pushes to `main`/`feature/**` and pull requests targeting `main`. It runs lint, mypy, and pytest across Python 3.11–3.13.
+- Validation is still pending: the workflow has been added but its run result has not yet been inspected, and the suite has not been run locally. M3 remains in progress until adapter contract tests and validation pass.
