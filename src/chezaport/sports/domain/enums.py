@@ -27,3 +27,16 @@ class FixtureStatus(StrEnum):
     SUSPENDED = "suspended"
     ABANDONED = "abandoned"
     CANCELLED = "cancelled"
+
+
+class CanonicalEntityType(StrEnum):
+    """Canonical entity types that may be mapped to provider identifiers."""
+
+    SPORT = "sport"
+    COUNTRY = "country"
+    VENUE = "venue"
+    COMPETITION = "competition"
+    SEASON = "season"
+    TEAM = "team"
+    PLAYER = "player"
+    FIXTURE = "fixture"
