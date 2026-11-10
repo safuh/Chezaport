@@ -78,10 +78,8 @@ class ProviderFixture(ProviderPayload):
             raise ValueError("kickoff_at must include a timezone")
         return value
 
-    @field_validator("away_team_external_id")
-    @classmethod
-    def teams_must_be_different(cls, value: str, info: object) -> str:
-        home_team_id = getattr(info, "data", {}).get("home_team_external_id")
-        if home_team_id is not None and value == home_team_id:
+    @model_validator(mode="after")
+    def teams_must_be_different(self) -> "ProviderFixture":
+        if self.home_team_external_id == self.away_team_external_id:
             raise ValueError("home and away teams must be different")
-        return value
+        return self
