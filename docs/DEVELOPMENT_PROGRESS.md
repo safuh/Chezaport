@@ -28,7 +28,7 @@ Chezaport is being developed into a sports information and analysis platform. Th
 | M1 | API and sports domain foundation | Complete | Versioned API, domain package boundaries, tests, and documented conventions |
 | M2 | Core sports entities | Complete | Sport, country, competition, season, team, player, venue, fixture models and migrations |
 | M3 | Provider-neutral integration | Complete | Provider contracts, normalized schemas, external-ID mapping, and adapter tests |
-| M4 | Free-first data ingestion | In progress | Idempotent import/sync commands, retry policy, rate-limit handling, and no Redis/broker dependency |
+| M4 | Free-first data ingestion | In progress | Provider adapter, idempotent import/sync commands, retry policy, rate-limit handling, and no Redis/broker dependency |
 | M5 | Sports analytics | Not started | Standings, form, head-to-head, and match statistics with deterministic tests |
 | M6 | Public API and frontend readiness | Not started | Documented API endpoints, pagination/filtering, and stable response schemas |
 | M7 | Production hardening | Not started | Security review, observability, deployment guide, backups, and performance checks |
@@ -113,3 +113,12 @@ At the end of each implementation session, update this file and GitHub issue #1 
 - GitHub Actions run [#21](https://github.com/safuh/Chezaport/actions/runs/42867249463) completed successfully for commit `934894cfbd3ce7eb17ac3a7847906b55ffb3ef6d`.
 - Ruff lint, mypy type checking, and pytest all passed on Python 3.11, 3.12, and 3.13.
 - M1, M2, and M3 are marked complete based on the implemented scope and passing CI. M4 remains in progress: a real provider adapter, retry/rate-limit policy, ingestion CLI, and repeatable scheduled sync are still outstanding.
+
+
+### 2026-11-10 — provider retry foundation and European pilot decision
+
+- Added a bounded asynchronous retry helper for transient provider-unavailable and rate-limit failures. It uses exponential backoff and honors provider-supplied Retry-After values; configuration/authentication errors are not retried.
+- Added deterministic tests for retry success, Retry-After precedence, non-retryable configuration errors, attempt exhaustion, and invalid configuration. These tests use an injected sleep function and do not make network requests.
+- Researched football-data.org as the European pilot candidate. The free tier currently lists 12 competitions, including Bundesliga (BL1), with delayed scores and a 10 requests/minute limit. Authenticated data access requires a registered API token and visible attribution.
+- Added ADR 0004 documenting the candidate, limitations, credential handling, attribution, and unresolved data-use/redistribution terms. The provider adapter is intentionally paused pending owner approval and clarification of intended usage rights; no credential is committed or requested in chat.
+- CI must be checked by the project owner before the next code push. No local Ruff, mypy, or pytest execution is claimed for this increment.
