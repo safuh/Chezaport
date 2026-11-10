@@ -77,3 +77,13 @@ At the end of each implementation session, update this file and GitHub issue #1 
 - Added async SQLite tests for resolution, idempotent registration, and both conflict cases.
 - The resolver relies on database unique constraints as the final concurrency guard; ingestion callers must handle an `IntegrityError` from concurrent duplicate registration and retry their transaction.
 - Validation remains pending because no local checkout or completed CI result has been inspected.
+
+### 2026-11-10 — first ingestion service increment
+
+- Added `SportsIngestionService` for explicit provider-neutral competition and team upserts. It resolves provider IDs, reuses canonical records by sport/slug where possible, and registers mappings.
+- Added per-record result objects and batch counts for created, updated, unchanged, and failed records.
+- Each record is isolated in a database savepoint: invalid records are reported without aborting successful records in the same batch. The service never commits; the caller owns the outer transaction.
+- Canonical sport records must be seeded before importing records for that sport. If a provider supplies a country code, that country must also exist in the canonical country table; this avoids silently creating incomplete country records.
+- Added tests for idempotent competition imports, team updates, per-record failure isolation, and missing canonical country handling.
+- M4 is now in progress. The provider adapter, retry/backoff policy, ingestion CLI, and end-to-end validation remain outstanding.
+- Validation remains pending: these changes were committed remotely; no local test execution or confirmed CI result is available yet.
