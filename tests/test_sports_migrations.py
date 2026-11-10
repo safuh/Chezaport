@@ -39,6 +39,7 @@ async def test_alembic_migrations_create_sports_schema(tmp_path: Path) -> None:
             "players",
             "team_memberships",
             "fixtures",
+            "external_id_mappings",
             "users",
             "refresh_tokens",
             "alembic_version",
