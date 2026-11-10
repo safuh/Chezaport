@@ -44,8 +44,17 @@ Chezaport is being developed into a sports information and analysis platform. Th
 - Added an explicit `/api/v1` router while preserving existing health and authentication routes at their current paths.
 - Established the `sports` and `sports.domain` package boundaries.
 - Added normalized `SportCode` and `FixtureStatus` domain enums so provider-specific status values can be mapped at integration boundaries.
-- Validation is pending: this session used remote repository edits and did not execute the project test suite. Do not treat M1 as complete until local checks and tests pass.
 
-### 2026-11-10 — continued implementation\n\n- M1 implementation: versioned API discovery endpoint and test added; validation still pending.\n- M2 implementation started: nine core tables and Alembic migration added. Player-team history is represented by time-bounded team memberships rather than a single mutable current-team field.\n- Added SQLite-focused tests to validate metadata registration, table creation, and the complete Alembic migration chain.\n\n## Progress update procedure
+### 2026-11-10 — continued implementation
+
+- M1 implementation: added the versioned API discovery endpoint and a corresponding test. Validation is still pending.
+- M2 implementation started: added nine core sports tables and Alembic migration `0004_sports_core`.
+- Player-team history is represented by time-bounded team memberships rather than a single mutable current-team field.
+- Added SQLite-focused tests for metadata registration, table creation, and the full Alembic migration chain.
+- Added database constraints for fixture scores and statuses, distinct home/away teams, venue capacity, and date ordering.
+- Registered sports models with Alembic metadata.
+- Validation remains pending: remote repository edits were made, but the project test suite and migration chain have not yet been executed in a local checkout or CI. M1 is implemented but unverified; M2 remains in progress.
+
+## Progress update procedure
 
 At the end of each implementation session, update this file and GitHub issue #1 with completed work, test results, blockers, and the next concrete task. A milestone is complete only when its exit criteria and tests pass.
