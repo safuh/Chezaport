@@ -6,7 +6,6 @@ from datetime import datetime
 import pytest
 
 from chezaport.sports.integrations.errors import ProviderConfigurationError
-from chezaport.sports.integrations.protocols import SportsDataProvider
 from chezaport.sports.integrations.registry import (
     CompetitionProviderRoute,
     SportsProviderRegistry,
