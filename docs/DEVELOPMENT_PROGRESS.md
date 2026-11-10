@@ -28,7 +28,7 @@ Chezaport is being developed into a sports information and analysis platform. Th
 | M1 | API and sports domain foundation | Implemented; validation pending | Versioned API, domain package boundaries, tests, and documented conventions |
 | M2 | Core sports entities | In progress | Sport, country, competition, season, team, player, venue, fixture models and migrations |
 | M3 | Provider-neutral integration | In progress | Provider contracts, normalized schemas, external-ID mapping, and adapter tests |
-| M4 | Free-first data ingestion | Not started | Idempotent import/sync commands, retry policy, rate-limit handling, and no Redis/broker dependency |
+| M4 | Free-first data ingestion | In progress | Idempotent import/sync commands, retry policy, rate-limit handling, and no Redis/broker dependency |
 | M5 | Sports analytics | Not started | Standings, form, head-to-head, and match statistics with deterministic tests |
 | M6 | Public API and frontend readiness | Not started | Documented API endpoints, pagination/filtering, and stable response schemas |
 | M7 | Production hardening | Not started | Security review, observability, deployment guide, backups, and performance checks |
