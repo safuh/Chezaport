@@ -1,8 +1,8 @@
 """Provider-neutral payload schemas used at the ingestion boundary."""
 
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from chezaport.sports.domain.enums import FixtureStatus
 
@@ -37,9 +37,15 @@ class ProviderSeason(ProviderPayload):
 
     competition_external_id: str = Field(min_length=1, max_length=160)
     name: str = Field(min_length=1, max_length=80)
-    start_date: datetime | None = None
-    end_date: datetime | None = None
+    start_date: date | None = None
+    end_date: date | None = None
     is_current: bool = False
+
+    @model_validator(mode="after")
+    def dates_must_be_ordered(self) -> "ProviderSeason":
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date must not precede start_date")
+        return self
 
 
 class ProviderTeam(ProviderPayload):
