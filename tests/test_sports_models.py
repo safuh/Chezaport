@@ -1,5 +1,6 @@
 """Tests for the provider-neutral sports persistence schema."""
 
+from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from chezaport.core.database import Base
@@ -28,9 +29,7 @@ async def test_sports_schema_can_be_created_with_sqlite() -> None:
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
             table_names = await connection.run_sync(
-                lambda sync_connection: set(
-                    __import__("sqlalchemy").inspect(sync_connection).get_table_names()
-                )
+                lambda sync_connection: set(inspect(sync_connection).get_table_names())
             )
         assert "fixtures" in table_names
         assert "team_memberships" in table_names
