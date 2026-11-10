@@ -1,7 +1,5 @@
 """Tests for explicit provider registration and competition routing."""
 
-import datetime
-
 import pytest
 
 from chezaport.sports.integrations.capabilities import (
@@ -66,7 +64,7 @@ class StubProvider:
         competition_external_id: str,
         season_external_id: str,
         *,
-        since: datetime.datetime | None = None,
+        since: object | None = None,
     ) -> list[ProviderFixture]:
         return []
 
