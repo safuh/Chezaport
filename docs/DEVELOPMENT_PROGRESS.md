@@ -27,7 +27,7 @@ Chezaport is being developed into a sports information and analysis platform. Th
 | M0 | Repository baseline and progress tracking | Complete | Branch, issue tracker, constraints, and development log established |
 | M1 | API and sports domain foundation | Implemented; validation pending | Versioned API, domain package boundaries, tests, and documented conventions |
 | M2 | Core sports entities | In progress | Sport, country, competition, season, team, player, venue, fixture models and migrations |
-| M3 | Provider-neutral integration | Not started | Provider contracts, normalized schemas, external-ID mapping, and adapter tests |
+| M3 | Provider-neutral integration | In progress | Provider contracts, normalized schemas, external-ID mapping, and adapter tests |
 | M4 | Free-first data ingestion | Not started | Idempotent import/sync commands, retry policy, rate-limit handling, and no Redis/broker dependency |
 | M5 | Sports analytics | Not started | Standings, form, head-to-head, and match statistics with deterministic tests |
 | M6 | Public API and frontend readiness | Not started | Documented API endpoints, pagination/filtering, and stable response schemas |
@@ -58,3 +58,12 @@ Chezaport is being developed into a sports information and analysis platform. Th
 ## Progress update procedure
 
 At the end of each implementation session, update this file and GitHub issue #1 with completed work, test results, blockers, and the next concrete task. A milestone is complete only when its exit criteria and tests pass.
+
+### 2026-11-10 — provider integration foundation
+
+- Added normalized Pydantic schemas for provider competitions, seasons, teams, and fixtures. Provider-specific extra fields are ignored at the boundary rather than entering the core domain.
+- Added the async `SportsDataProvider` protocol so vendor adapters share one contract.
+- Added typed provider exceptions for configuration, temporary unavailability, and rate-limit responses, including optional retry-after metadata.
+- Added the provider-neutral `external_id_mappings` table and Alembic revision `0005_external_id_mappings`. Provider IDs are mapped to canonical entities without adding vendor columns to the sports tables.
+- Added schema tests for whitespace normalization, timezone-aware fixture kickoff, distinct home/away teams, and valid season date ranges.
+- Validation is still pending: these changes have been committed to the feature branch but have not been run locally or by CI. M3 remains in progress until adapter contract tests and validation pass.
