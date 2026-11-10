@@ -122,3 +122,15 @@ At the end of each implementation session, update this file and GitHub issue #1 
 - Researched football-data.org as the European pilot candidate. The free tier currently lists 12 competitions, including Bundesliga (BL1), with delayed scores and a 10 requests/minute limit. Authenticated data access requires a registered API token and visible attribution.
 - Added ADR 0004 documenting the candidate, limitations, credential handling, attribution, and unresolved data-use/redistribution terms. The provider adapter is intentionally paused pending owner approval and clarification of intended usage rights; no credential is committed or requested in chat.
 - CI must be checked by the project owner before the next code push. No local Ruff, mypy, or pytest execution is claimed for this increment.
+
+
+### 2026-11-10 — EPL pilot and provider routing
+
+- Confirmed the English Premier League (EPL, canonical competition code `PL`) as the first pilot competition and football-data.org as the approved initial provider.
+- Added `SportsProviderRegistry` and `CompetitionProviderRoute` so adapters can be registered independently and ordered per competition. Provider names are normalized, duplicate registrations/routes are rejected, and unknown providers or missing routes fail explicitly.
+- Added registry tests for ordered routing, duplicate registration, unknown providers, missing routes, and duplicate route entries.
+- Added ADR 0005 documenting provider-specific quotas, competition-aware routing, safe fallback requirements, stable canonical IDs, and the prohibition on blind failover.
+- The registry deliberately exposes candidates rather than automatically switching after every error. An alternate must be verified for the competition and resource; a quota error should respect that provider's reset/retry metadata.
+- football-data.org free-tier constraints to design around: EPL coverage, authenticated API token, delayed scores/schedules, 10 requests/minute, and visible attribution. Live scores and deeper match statistics are not part of the free plan.
+- No API token is stored or requested in chat. The concrete HTTP adapter and authenticated integration test remain gated on local credential configuration; no provider request has been made.
+- Local Ruff, mypy, and pytest have not been run for this increment. Check the branch CI before the next push.
