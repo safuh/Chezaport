@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from chezaport.core.config import get_settings
 from chezaport.core.database import Base
 from chezaport.identity import RefreshToken, User  # noqa: F401
+from chezaport.sports import models as sports_models  # noqa: F401
 
 config = context.config
 settings = get_settings()
