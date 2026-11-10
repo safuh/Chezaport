@@ -1,6 +1,5 @@
 """Tests for explicit provider registration and competition routing."""
 
-import collections.abc
 import datetime
 
 import pytest
@@ -49,17 +48,17 @@ class StubProvider:
 
     async def fetch_competitions(
         self, sport_code: str
-    ) -> collections.abc.Sequence[ProviderCompetition]:
+    ) -> list[ProviderCompetition]:
         return []
 
     async def fetch_seasons(
         self, competition_external_id: str
-    ) -> collections.abc.Sequence[ProviderSeason]:
+    ) -> list[ProviderSeason]:
         return []
 
     async def fetch_teams(
         self, competition_external_id: str
-    ) -> collections.abc.Sequence[ProviderTeam]:
+    ) -> list[ProviderTeam]:
         return []
 
     async def fetch_fixtures(
@@ -68,7 +67,7 @@ class StubProvider:
         season_external_id: str,
         *,
         since: datetime.datetime | None = None,
-    ) -> collections.abc.Sequence[ProviderFixture]:
+    ) -> list[ProviderFixture]:
         return []
 
 
