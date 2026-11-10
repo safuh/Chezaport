@@ -46,3 +46,16 @@ async def test_alembic_migrations_create_sports_schema(tmp_path: Path) -> None:
         } <= tables
     finally:
         await engine.dispose()
+
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "base"],
+        check=True,
+        cwd=project_root,
+        env=env,
+    )
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        check=True,
+        cwd=project_root,
+        env=env,
+    )
