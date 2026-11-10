@@ -12,8 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from chezaport.sports.domain.enums import CanonicalEntityType
 from chezaport.sports.integrations.errors import ExternalIDConflictError
-from chezaport.sports.integrations.schemas import ProviderCompetition, ProviderTeam
-from chezaport.sports.models import Competition, Country, Sport, Team
+from chezaport.sports.integrations.schemas import (
+    ProviderCompetition,
+    ProviderFixture,
+    ProviderSeason,
+    ProviderTeam,
+)
+from chezaport.sports.models import Competition, Country, Fixture, Season, Sport, Team
 from chezaport.sports.services.external_ids import ExternalIDResolver
 
 
@@ -128,6 +133,204 @@ class SportsIngestionService:
                     )
                 )
         return report
+
+    async def import_seasons(
+        self, records: list[ProviderSeason] | tuple[ProviderSeason, ...]
+    ) -> IngestionReport:
+        """Create or update seasons after their competitions have been imported."""
+        report = IngestionReport(provider=self._provider)
+        await self._session.flush()
+        for record in records:
+            try:
+                async with self._session.begin_nested():
+                    result = await self._upsert_season(record)
+                report.items.append(result)
+            except Exception as exc:
+                report.items.append(
+                    IngestionItemResult(
+                        entity_type=CanonicalEntityType.SEASON,
+                        external_id=record.external_id,
+                        outcome=IngestionOutcome.FAILED,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                )
+        return report
+
+    async def import_fixtures(
+        self, records: list[ProviderFixture] | tuple[ProviderFixture, ...]
+    ) -> IngestionReport:
+        """Create or update fixtures after related entities are imported."""
+        report = IngestionReport(provider=self._provider)
+        await self._session.flush()
+        for record in records:
+            try:
+                async with self._session.begin_nested():
+                    result = await self._upsert_fixture(record)
+                report.items.append(result)
+            except Exception as exc:
+                report.items.append(
+                    IngestionItemResult(
+                        entity_type=CanonicalEntityType.FIXTURE,
+                        external_id=record.external_id,
+                        outcome=IngestionOutcome.FAILED,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                )
+        return report
+
+    async def _mapped_entity_id(
+        self, entity_type: CanonicalEntityType, external_id: str
+    ) -> str:
+        entity_id = await self._resolver.resolve(
+            provider=self._provider,
+            entity_type=entity_type,
+            external_id=external_id,
+        )
+        if entity_id is None:
+            raise ValueError(
+                f"unresolved {entity_type.value} provider ID: {external_id}"
+            )
+        return entity_id
+
+    async def _upsert_season(self, record: ProviderSeason) -> IngestionItemResult:
+        competition_id = await self._mapped_entity_id(
+            CanonicalEntityType.COMPETITION, record.competition_external_id
+        )
+        competition = await self._session.get(Competition, competition_id)
+        if competition is None:
+            raise ExternalIDConflictError(
+                f"mapping points to missing competition {competition_id}"
+            )
+        mapped_id = await self._resolver.resolve(
+            provider=self._provider,
+            entity_type=CanonicalEntityType.SEASON,
+            external_id=record.external_id,
+        )
+        season = await self._session.get(Season, mapped_id) if mapped_id else None
+        if mapped_id is not None and season is None:
+            raise ExternalIDConflictError(f"mapping points to missing season {mapped_id}")
+        if season is not None and season.competition_id != competition_id:
+            raise ExternalIDConflictError("mapped season belongs to a different competition")
+        if season is None:
+            season = await self._session.scalar(
+                select(Season).where(
+                    Season.competition_id == competition_id,
+                    Season.name == record.name,
+                )
+            )
+        created = season is None
+        if season is None:
+            season = Season(
+                competition_id=competition_id,
+                name=record.name,
+                start_date=record.start_date,
+                end_date=record.end_date,
+                is_current=record.is_current,
+            )
+            self._session.add(season)
+            await self._session.flush()
+            changed = True
+        else:
+            changed = any(
+                (
+                    season.name != record.name,
+                    season.start_date != record.start_date,
+                    season.end_date != record.end_date,
+                    season.is_current != record.is_current,
+                )
+            )
+            season.name = record.name
+            season.start_date = record.start_date
+            season.end_date = record.end_date
+            season.is_current = record.is_current
+            await self._session.flush()
+        await self._resolver.register(
+            provider=self._provider,
+            entity_type=CanonicalEntityType.SEASON,
+            entity_id=season.id,
+            external_id=record.external_id,
+        )
+        return IngestionItemResult(
+            entity_type=CanonicalEntityType.SEASON,
+            external_id=record.external_id,
+            outcome=(
+                IngestionOutcome.CREATED
+                if created
+                else IngestionOutcome.UPDATED
+                if changed
+                else IngestionOutcome.UNCHANGED
+            ),
+            canonical_id=season.id,
+        )
+
+    async def _upsert_fixture(self, record: ProviderFixture) -> IngestionItemResult:
+        competition_id = await self._mapped_entity_id(
+            CanonicalEntityType.COMPETITION, record.competition_external_id
+        )
+        season_id = await self._mapped_entity_id(
+            CanonicalEntityType.SEASON, record.season_external_id
+        )
+        home_team_id = await self._mapped_entity_id(
+            CanonicalEntityType.TEAM, record.home_team_external_id
+        )
+        away_team_id = await self._mapped_entity_id(
+            CanonicalEntityType.TEAM, record.away_team_external_id
+        )
+        season = await self._session.get(Season, season_id)
+        if season is None or season.competition_id != competition_id:
+            raise ValueError("fixture season does not belong to its competition")
+        for team_id in (home_team_id, away_team_id):
+            if await self._session.get(Team, team_id) is None:
+                raise ExternalIDConflictError(f"mapping points to missing team {team_id}")
+
+        mapped_id = await self._resolver.resolve(
+            provider=self._provider,
+            entity_type=CanonicalEntityType.FIXTURE,
+            external_id=record.external_id,
+        )
+        fixture = await self._session.get(Fixture, mapped_id) if mapped_id else None
+        if mapped_id is not None and fixture is None:
+            raise ExternalIDConflictError(f"mapping points to missing fixture {mapped_id}")
+        created = fixture is None
+        values = {
+            "competition_id": competition_id,
+            "season_id": season_id,
+            "home_team_id": home_team_id,
+            "away_team_id": away_team_id,
+            "kickoff_at": record.kickoff_at,
+            "status": record.status.value,
+            "home_score": record.home_score,
+            "away_score": record.away_score,
+            "round_name": record.round_name,
+        }
+        if fixture is None:
+            fixture = Fixture(**values)
+            self._session.add(fixture)
+            await self._session.flush()
+            changed = True
+        else:
+            changed = any(getattr(fixture, key) != value for key, value in values.items())
+            for key, value in values.items():
+                setattr(fixture, key, value)
+            await self._session.flush()
+        await self._resolver.register(
+            provider=self._provider,
+            entity_type=CanonicalEntityType.FIXTURE,
+            entity_id=fixture.id,
+            external_id=record.external_id,
+        )
+        return IngestionItemResult(
+            entity_type=CanonicalEntityType.FIXTURE,
+            external_id=record.external_id,
+            outcome=(
+                IngestionOutcome.CREATED
+                if created
+                else IngestionOutcome.UPDATED
+                if changed
+                else IngestionOutcome.UNCHANGED
+            ),
+            canonical_id=fixture.id,
+        )
 
     async def _sport_id(self, sport_code: str) -> str:
         sport_id = await self._session.scalar(
