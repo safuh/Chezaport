@@ -157,6 +157,11 @@ def upgrade() -> None:
             "home_team_id <> away_team_id", name="ck_fixtures_distinct_teams"
         ),
         sa.CheckConstraint(
+            "status IN ('scheduled', 'live', 'halftime', 'finished', 'postponed', "
+            "'suspended', 'abandoned', 'cancelled')",
+            name="ck_fixtures_status_valid",
+        ),
+        sa.CheckConstraint(
             "home_score IS NULL OR home_score >= 0",
             name="ck_fixtures_home_score_nonnegative",
         ),
