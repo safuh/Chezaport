@@ -234,3 +234,38 @@ class Fixture(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+
+class ExternalIDMapping(Base):
+    """Map a provider's stable identifier to a canonical sports entity.
+
+    entity_id is intentionally polymorphic: the entity_type discriminator
+    identifies which canonical table owns the UUID, keeping provider metadata
+    out of core domain tables.
+    """
+
+    __tablename__ = "external_id_mappings"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider", "entity_type", "external_id", name="uq_external_mapping_provider_external"
+        ),
+        UniqueConstraint(
+            "provider", "entity_type", "entity_id", name="uq_external_mapping_provider_entity"
+        ),
+        CheckConstraint(
+            "entity_type IN ('sport', 'country', 'venue', 'competition', 'season', "
+            "'team', 'player', 'fixture')",
+            name="ck_external_mapping_entity_type_valid",
+        ),
+        Index("ix_external_id_mappings_entity", "entity_type", "entity_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_id)
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    external_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
