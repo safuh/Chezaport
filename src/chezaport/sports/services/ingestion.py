@@ -5,6 +5,7 @@ It does not fetch from providers, commit transactions, or create sessions.
 """
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from sqlalchemy import select
@@ -20,6 +21,13 @@ from chezaport.sports.integrations.schemas import (
 )
 from chezaport.sports.models import Competition, Country, Fixture, Season, Sport, Team
 from chezaport.sports.services.external_ids import ExternalIDResolver
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Normalize database-returned naive timestamps and provider timestamps to UTC."""
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class IngestionOutcome(StrEnum):
@@ -297,7 +305,7 @@ class SportsIngestionService:
             "season_id": season_id,
             "home_team_id": home_team_id,
             "away_team_id": away_team_id,
-            "kickoff_at": record.kickoff_at,
+            "kickoff_at": record.kickoff_at.astimezone(UTC),
             "status": record.status.value,
             "home_score": record.home_score,
             "away_score": record.away_score,
@@ -309,7 +317,14 @@ class SportsIngestionService:
             await self._session.flush()
             changed = True
         else:
-            changed = any(getattr(fixture, key) != value for key, value in values.items())
+            changed = any(
+                (
+                    _as_utc(fixture.kickoff_at) != values["kickoff_at"]
+                    if key == "kickoff_at"
+                    else getattr(fixture, key) != value
+                )
+                for key, value in values.items()
+            )
             for key, value in values.items():
                 setattr(fixture, key, value)
             await self._session.flush()
