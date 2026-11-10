@@ -25,9 +25,9 @@ Chezaport is being developed into a sports information and analysis platform. Th
 | ID | Milestone | Status | Exit criteria |
 |---|---|---|---|
 | M0 | Repository baseline and progress tracking | Complete | Branch, issue tracker, constraints, and development log established |
-| M1 | API and sports domain foundation | Implemented; validation pending | Versioned API, domain package boundaries, tests, and documented conventions |
-| M2 | Core sports entities | In progress | Sport, country, competition, season, team, player, venue, fixture models and migrations |
-| M3 | Provider-neutral integration | In progress | Provider contracts, normalized schemas, external-ID mapping, and adapter tests |
+| M1 | API and sports domain foundation | Complete | Versioned API, domain package boundaries, tests, and documented conventions |
+| M2 | Core sports entities | Complete | Sport, country, competition, season, team, player, venue, fixture models and migrations |
+| M3 | Provider-neutral integration | Complete | Provider contracts, normalized schemas, external-ID mapping, and adapter tests |
 | M4 | Free-first data ingestion | In progress | Idempotent import/sync commands, retry policy, rate-limit handling, and no Redis/broker dependency |
 | M5 | Sports analytics | Not started | Standings, form, head-to-head, and match statistics with deterministic tests |
 | M6 | Public API and frontend readiness | Not started | Documented API endpoints, pagination/filtering, and stable response schemas |
@@ -106,3 +106,10 @@ At the end of each implementation session, update this file and GitHub issue #1 
 - Tightened fixture ingestion: the competition must resolve to a canonical record, and both participating teams must belong to the same sport as that competition. This closes a cross-sport data-integrity gap not enforced by the current relational schema.
 - The CLI assumes migrations have already been applied. It uses the existing configured database URL and shared engine/session infrastructure; no Redis, task broker, paid service, or new dependency was introduced.
 - Validation is still pending until Ruff, mypy, pytest, and the branch CI workflow have actually completed successfully.
+
+
+### 2026-11-10 — CI validation checkpoint
+
+- GitHub Actions run [#21](https://github.com/safuh/Chezaport/actions/runs/42867249463) completed successfully for commit `934894cfbd3ce7eb17ac3a7847906b55ffb3ef6d`.
+- Ruff lint, mypy type checking, and pytest all passed on Python 3.11, 3.12, and 3.13.
+- M1, M2, and M3 are marked complete based on the implemented scope and passing CI. M4 remains in progress: a real provider adapter, retry/rate-limit policy, ingestion CLI, and repeatable scheduled sync are still outstanding.
