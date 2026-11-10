@@ -216,3 +216,63 @@ async def test_fixture_import_reports_unresolved_dependencies(session_factory) -
         assert "unresolved competition provider ID" in (report.items[0].error or "")
         assert await session.scalar(select(func.count()).select_from(Fixture)) == 0
         await session.commit()
+
+
+async def test_fixture_import_rejects_team_from_another_sport(session_factory) -> None:
+    from datetime import UTC, datetime
+
+    async with session_factory() as session:
+        await seed_football(session)
+        session.add(Sport(code="rugby", name="Rugby"))
+        await session.flush()
+        service = SportsIngestionService(session, "sample")
+        await service.import_competitions(
+            [
+                ProviderCompetition(
+                    external_id="football-league",
+                    name="Football League",
+                    slug="football-league",
+                )
+            ]
+        )
+        await service.import_teams(
+            [
+                ProviderTeam(
+                    external_id="football-home",
+                    name="Football Home",
+                    slug="football-home",
+                ),
+                ProviderTeam(
+                    external_id="rugby-away",
+                    name="Rugby Away",
+                    slug="rugby-away",
+                    sport_code="rugby",
+                ),
+            ]
+        )
+        await service.import_seasons(
+            [
+                ProviderSeason(
+                    external_id="football-season",
+                    competition_external_id="football-league",
+                    name="2026",
+                )
+            ]
+        )
+        report = await service.import_fixtures(
+            [
+                ProviderFixture(
+                    external_id="cross-sport-fixture",
+                    competition_external_id="football-league",
+                    season_external_id="football-season",
+                    home_team_external_id="football-home",
+                    away_team_external_id="rugby-away",
+                    kickoff_at=datetime(2026, 11, 10, 15, 0, tzinfo=UTC),
+                )
+            ]
+        )
+
+        assert report.failed == 1
+        assert "same sport" in (report.items[0].error or "")
+        assert await session.scalar(select(func.count()).select_from(Fixture)) == 0
+        await session.commit()
