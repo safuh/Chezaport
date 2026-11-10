@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
 
+from chezaport.sports.integrations.capabilities import ProviderCapabilities
 from chezaport.sports.integrations.schemas import (
     ProviderCompetition,
     ProviderFixture,
@@ -17,11 +18,17 @@ class SportsDataProvider(Protocol):
 
     Implementations must not leak vendor-specific models or status strings into
     the domain. Rate limits and transient failures should use typed exceptions.
+    Coverage must be declared explicitly through the capabilities property.
     """
 
     @property
     def provider_name(self) -> str:
         """Stable, lowercase provider identifier used for external-ID mapping."""
+        ...
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        """Competition and resource coverage declared by this adapter."""
         ...
 
     async def fetch_competitions(self, sport_code: str) -> Sequence[ProviderCompetition]:

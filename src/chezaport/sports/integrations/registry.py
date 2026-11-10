@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from chezaport.sports.integrations.capabilities import ProviderResource
 from chezaport.sports.integrations.errors import ProviderConfigurationError
 from chezaport.sports.integrations.protocols import SportsDataProvider
 
@@ -30,8 +31,9 @@ class SportsProviderRegistry:
     """In-memory registry; routing is explicit and never guesses provider coverage.
 
     The ordered route is a candidate list, not an automatic failover mechanism.
-    Callers must only advance to another candidate after classifying the failure
-    and confirming that the alternate provider supports the requested resource.
+    When a resource is requested, candidates are filtered against each adapter's
+    declared coverage. Callers must still classify failures before trying another
+    candidate; this registry does not perform requests or failover.
     """
 
     def __init__(self) -> None:
@@ -68,9 +70,17 @@ class SportsProviderRegistry:
             ) from exc
 
     def providers_for_competition(
-        self, competition_code: str
+        self,
+        competition_code: str,
+        *,
+        resource: ProviderResource | None = None,
     ) -> tuple[SportsDataProvider, ...]:
-        """Return configured candidates in priority order for a competition."""
+        """Return route candidates, optionally limited to declared resource support.
+
+        Omitting ~resource~ preserves route-inspection behavior. Before making
+        a provider request, callers should specify the exact resource so a
+        provider without declared coverage cannot be selected accidentally.
+        """
         code = competition_code.strip().upper()
         try:
             route = self._routes[code]
@@ -78,4 +88,19 @@ class SportsProviderRegistry:
             raise ProviderConfigurationError(
                 f"no provider route configured for competition: {code}"
             ) from exc
-        return tuple(self._providers[name] for name in route.provider_names)
+
+        candidates = tuple(self._providers[name] for name in route.provider_names)
+        if resource is None:
+            return candidates
+
+        supported = tuple(
+            provider
+            for provider in candidates
+            if provider.capabilities.supports(code, resource)
+        )
+        if not supported:
+            raise ProviderConfigurationError(
+                f"no routed provider declares support for {resource.value} "
+                f"in competition {code}"
+            )
+        return supported
