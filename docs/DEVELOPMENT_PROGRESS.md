@@ -57,5 +57,7 @@ Chezaport is being developed into a sports information and analysis platform. Th
 - Added explicit provider routing and documented that the registry returns candidates rather than performing automatic failover.
 - Added explicit `ProviderCapabilities` declarations for canonical competition codes and resource families (competitions, seasons, teams, fixtures). The registry can now filter ordered candidates by exact resource support and rejects requests when no candidate declares coverage.
 - Added deterministic capability and resource-routing tests. This preparation is provider-independent: it uses no API token, network request, Redis, or paid dependency.
+- Added provider-neutral synchronization orchestration for competition discovery and competition-scoped seasons, teams, and fixtures. It applies bounded retries, selects the first capability-qualified route candidate, deliberately performs no automatic failover, and returns structured fetch/ingestion reports.
+- Added deterministic SQLite/stub-provider tests for resource filtering, retry behavior, explicit competition discovery, transaction ownership, and no automatic failover. No provider credentials, HTTP client, network access, Redis, scheduler, or paid service was introduced.
 - ADRs 0005 and 0006 document provider routing and capability declarations.
 - CI was last confirmed successful on run [#33](https://github.com/safuh/Chezaport/actions/runs/42878093037), before this capability increment. The new changes still require CI validation.
