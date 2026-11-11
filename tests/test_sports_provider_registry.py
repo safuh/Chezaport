@@ -18,7 +18,6 @@ from chezaport.sports.integrations.schemas import (
     ProviderTeam,
 )
 
-
 ALL_RESOURCES = frozenset(ProviderResource)
 
 
@@ -116,7 +115,10 @@ def test_registry_rejects_resource_without_a_declared_provider() -> None:
     )
     registry.set_route(CompetitionProviderRoute("PL", ("fixtures-only",)))
 
-    with pytest.raises(ProviderConfigurationError, match="does not declare support"):
+    with pytest.raises(
+        ProviderConfigurationError,
+        match="no routed provider declares support",
+    ):
         registry.providers_for_competition(
             "PL", resource=ProviderResource.TEAMS
         )
