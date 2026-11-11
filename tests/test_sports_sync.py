@@ -1,7 +1,7 @@
 """Tests for provider-neutral sports synchronization orchestration."""
 
-from collections.abc import Awaitable, Callable, Sequence
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import datetime
 
 import pytest
 from sqlalchemy import func, select

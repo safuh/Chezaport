@@ -13,12 +13,6 @@ from chezaport.sports.integrations.errors import ProviderConfigurationError
 from chezaport.sports.integrations.protocols import SportsDataProvider
 from chezaport.sports.integrations.registry import SportsProviderRegistry
 from chezaport.sports.integrations.retry import retry_provider_call
-from chezaport.sports.integrations.schemas import (
-    ProviderCompetition,
-    ProviderFixture,
-    ProviderSeason,
-    ProviderTeam,
-)
 from chezaport.sports.services.ingestion import IngestionReport, SportsIngestionService
 
 RecordT = TypeVar("RecordT")
