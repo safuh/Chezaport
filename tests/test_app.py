@@ -66,7 +66,6 @@ def test_cors_policy_is_explicit() -> None:
     assert response.headers["access-control-allow-origin"] == "https://example.com"
 
 
-
 def test_versioned_api_discovery_endpoint() -> None:
     with TestClient(create_app(make_settings())) as client:
         response = client.get("/api/v1/")

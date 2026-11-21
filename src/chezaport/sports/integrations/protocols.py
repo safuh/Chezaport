@@ -35,9 +35,7 @@ class SportsDataProvider(Protocol):
         """Return competitions available for a sport."""
         ...
 
-    async def fetch_seasons(
-        self, competition_external_id: str
-    ) -> Sequence[ProviderSeason]:
+    async def fetch_seasons(self, competition_external_id: str) -> Sequence[ProviderSeason]:
         """Return seasons for a provider competition."""
         ...
 

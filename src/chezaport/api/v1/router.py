@@ -7,7 +7,10 @@ and future public contracts to evolve without breaking clients.
 
 from fastapi import APIRouter
 
+from chezaport.sports.api import router as sports_router
+
 router = APIRouter(prefix="/v1", tags=["API v1"])
+router.include_router(sports_router)
 
 
 @router.get("/", summary="API version information")

@@ -49,9 +49,10 @@ async def test_sqlalchemy_auth_composition_persists_full_lifecycle() -> None:
             await session.rollback()
 
             assert refreshed.subject == registration.subject
-            assert TokenService("x" * 32).decode(
-                refreshed.access_token, expected_type="access"
-            )["sub"] == registration.subject
+            assert (
+                TokenService("x" * 32).decode(refreshed.access_token, expected_type="access")["sub"]
+                == registration.subject
+            )
             assert refreshed.refresh_token != login.refresh_token
 
             assert await application.logout(refreshed.refresh_token)

@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Environment(StrEnum):
     DEVELOPMENT = "development"
     TEST = "test"
+    STAGING = "staging"
     PRODUCTION = "production"
 
 
@@ -58,11 +59,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_profile(self) -> "Settings":
-        if self.environment is Environment.PRODUCTION:
+        if self.environment in (Environment.STAGING, Environment.PRODUCTION):
+            profile = self.environment.value
             if self.debug:
-                raise ValueError("debug must be false in production")
+                raise ValueError(f"debug must be false in {profile}")
             if not self.database_url.startswith("postgresql+asyncpg://"):
-                raise ValueError("production requires a PostgreSQL asyncpg DATABASE_URL")
+                raise ValueError(f"{profile} requires a PostgreSQL asyncpg DATABASE_URL")
             self.log_json = True
         if self.environment is Environment.TEST:
             self.debug = False
@@ -78,9 +80,10 @@ class Settings(BaseSettings):
                 database_url="sqlite+aiosqlite:///:memory:",
                 log_json=False,
             )
-        if environment is Environment.PRODUCTION:
+        if environment in (Environment.STAGING, Environment.PRODUCTION):
             return cls(
                 environment=environment,
+                debug=False,
                 database_url="postgresql+asyncpg://backbone:backbone@localhost:5432/backbone",
                 log_json=True,
             )

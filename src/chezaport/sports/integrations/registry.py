@@ -54,9 +54,7 @@ class SportsProviderRegistry:
         missing = set(route.provider_names).difference(self._providers)
         if missing:
             names = ", ".join(sorted(missing))
-            raise ProviderConfigurationError(
-                f"route references unregistered provider(s): {names}"
-            )
+            raise ProviderConfigurationError(f"route references unregistered provider(s): {names}")
         self._routes[route.competition_code] = route
 
     def get(self, provider_name: str) -> SportsDataProvider:
@@ -65,9 +63,7 @@ class SportsProviderRegistry:
         try:
             return self._providers[name]
         except KeyError as exc:
-            raise ProviderConfigurationError(
-                f"provider is not registered: {name}"
-            ) from exc
+            raise ProviderConfigurationError(f"provider is not registered: {name}") from exc
 
     def providers_for_competition(
         self,
@@ -94,13 +90,10 @@ class SportsProviderRegistry:
             return candidates
 
         supported = tuple(
-            provider
-            for provider in candidates
-            if provider.capabilities.supports(code, resource)
+            provider for provider in candidates if provider.capabilities.supports(code, resource)
         )
         if not supported:
             raise ProviderConfigurationError(
-                f"no routed provider declares support for {resource.value} "
-                f"in competition {code}"
+                f"no routed provider declares support for {resource.value} in competition {code}"
             )
         return supported

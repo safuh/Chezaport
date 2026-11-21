@@ -22,9 +22,7 @@ class InMemoryRefreshTokenStore:
         """Persist a newly issued refresh-token record."""
         self.records[record.token_id] = record
 
-    async def consume(
-        self, token_id: UUID, subject: str
-    ) -> RefreshTokenRecord | None:
+    async def consume(self, token_id: UUID, subject: str) -> RefreshTokenRecord | None:
         """Consume a matching refresh-token record exactly once."""
         record = self.records.get(token_id)
         if record is None or record.revoked or record.subject != subject:
@@ -66,9 +64,7 @@ async def test_access_token_cannot_be_used_for_refresh(
     await service.issue("user-123")
     with pytest.raises(TokenError, match="Invalid refresh token"):
         await service.rotate(
-            service.token_service.create(
-                "user-123", timedelta(minutes=15), token_type="access"
-            )
+            service.token_service.create("user-123", timedelta(minutes=15), token_type="access")
         )
 
 

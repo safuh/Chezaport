@@ -63,9 +63,7 @@ class StubProvider:
     def capabilities(self) -> ProviderCapabilities:
         return self._capabilities
 
-    async def fetch_competitions(
-        self, sport_code: str
-    ) -> Sequence[ProviderCompetition]:
+    async def fetch_competitions(self, sport_code: str) -> Sequence[ProviderCompetition]:
         self.competition_calls += 1
         return self.competitions
 

@@ -4,6 +4,7 @@ set -euo pipefail
 COMPOSE=(docker compose -f docker/compose.production.yml)
 
 : "${DATABASE_URL:?DATABASE_URL must be set}"
+"${COMPOSE[@]}" config --quiet
 
 "${COMPOSE[@]}" build
 "${COMPOSE[@]}" run --rm api alembic upgrade head

@@ -62,9 +62,7 @@ class ExternalIDResolver:
             ExternalIDMapping.entity_type == entity_type.value,
             ExternalIDMapping.external_id == external_id,
         )
-        existing = await self._session.scalar(
-            select(ExternalIDMapping).where(*identity_filter)
-        )
+        existing = await self._session.scalar(select(ExternalIDMapping).where(*identity_filter))
         now = datetime.now(UTC)
         if existing is not None:
             if existing.entity_id != entity_id:

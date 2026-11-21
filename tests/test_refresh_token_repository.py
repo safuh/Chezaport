@@ -27,9 +27,7 @@ async def test_refresh_token_store_create_and_consume() -> None:
     try:
         store = SqlAlchemyRefreshTokenStore(session)
         token_id = uuid4()
-        await store.create(
-            RefreshTokenRecord(token_id, "user-123", timedelta(days=7))
-        )
+        await store.create(RefreshTokenRecord(token_id, "user-123", timedelta(days=7)))
         await session.commit()
 
         consumed = await store.consume(token_id, "user-123")
@@ -53,9 +51,7 @@ async def test_refresh_token_store_rejects_subject_mismatch_without_consuming() 
     try:
         store = SqlAlchemyRefreshTokenStore(session)
         token_id = uuid4()
-        await store.create(
-            RefreshTokenRecord(token_id, "user-123", timedelta(days=7))
-        )
+        await store.create(RefreshTokenRecord(token_id, "user-123", timedelta(days=7)))
         await session.commit()
 
         assert await store.consume(token_id, "attacker") is None
@@ -71,9 +67,7 @@ async def test_refresh_token_store_rejects_expired_token() -> None:
     try:
         store = SqlAlchemyRefreshTokenStore(session)
         token_id = uuid4()
-        await store.create(
-            RefreshTokenRecord(token_id, "user-123", timedelta(seconds=-1))
-        )
+        await store.create(RefreshTokenRecord(token_id, "user-123", timedelta(seconds=-1)))
         await session.commit()
 
         assert await store.consume(token_id, "user-123") is None
@@ -88,9 +82,7 @@ async def test_refresh_token_store_revoke_is_idempotent() -> None:
     try:
         store = SqlAlchemyRefreshTokenStore(session)
         token_id = uuid4()
-        await store.create(
-            RefreshTokenRecord(token_id, "user-123", timedelta(days=7))
-        )
+        await store.create(RefreshTokenRecord(token_id, "user-123", timedelta(days=7)))
         await session.commit()
 
         assert await store.revoke(token_id)

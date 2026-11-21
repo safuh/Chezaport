@@ -186,18 +186,14 @@ class SportsIngestionService:
                 )
         return report
 
-    async def _mapped_entity_id(
-        self, entity_type: CanonicalEntityType, external_id: str
-    ) -> str:
+    async def _mapped_entity_id(self, entity_type: CanonicalEntityType, external_id: str) -> str:
         entity_id = await self._resolver.resolve(
             provider=self._provider,
             entity_type=entity_type,
             external_id=external_id,
         )
         if entity_id is None:
-            raise ValueError(
-                f"unresolved {entity_type.value} provider ID: {external_id}"
-            )
+            raise ValueError(f"unresolved {entity_type.value} provider ID: {external_id}")
         return entity_id
 
     async def _upsert_season(self, record: ProviderSeason) -> IngestionItemResult:
@@ -206,9 +202,7 @@ class SportsIngestionService:
         )
         competition = await self._session.get(Competition, competition_id)
         if competition is None:
-            raise ExternalIDConflictError(
-                f"mapping points to missing competition {competition_id}"
-            )
+            raise ExternalIDConflictError(f"mapping points to missing competition {competition_id}")
         mapped_id = await self._resolver.resolve(
             provider=self._provider,
             entity_type=CanonicalEntityType.SEASON,
@@ -286,9 +280,7 @@ class SportsIngestionService:
         )
         competition = await self._session.get(Competition, competition_id)
         if competition is None:
-            raise ExternalIDConflictError(
-                f"mapping points to missing competition {competition_id}"
-            )
+            raise ExternalIDConflictError(f"mapping points to missing competition {competition_id}")
         season = await self._session.get(Season, season_id)
         if season is None or season.competition_id != competition_id:
             raise ValueError("fixture season does not belong to its competition")
@@ -373,9 +365,7 @@ class SportsIngestionService:
             raise ValueError(f"canonical country is not seeded: {country_code}")
         return country_id
 
-    async def _upsert_competition(
-        self, record: ProviderCompetition
-    ) -> IngestionItemResult:
+    async def _upsert_competition(self, record: ProviderCompetition) -> IngestionItemResult:
         sport_id = await self._sport_id(record.sport_code)
         mapped_id = await self._resolver.resolve(
             provider=self._provider,
@@ -386,9 +376,7 @@ class SportsIngestionService:
             await self._session.get(Competition, mapped_id) if mapped_id is not None else None
         )
         if mapped_id is not None and competition is None:
-            raise ExternalIDConflictError(
-                f"mapping points to missing competition {mapped_id}"
-            )
+            raise ExternalIDConflictError(f"mapping points to missing competition {mapped_id}")
         if competition is not None and competition.sport_id != sport_id:
             raise ExternalIDConflictError("mapped competition belongs to a different sport")
 

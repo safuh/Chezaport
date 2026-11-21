@@ -38,11 +38,15 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
-            "provider", "entity_type", "external_id",
+            "provider",
+            "entity_type",
+            "external_id",
             name="uq_external_mapping_provider_external",
         ),
         sa.UniqueConstraint(
-            "provider", "entity_type", "entity_id",
+            "provider",
+            "entity_type",
+            "entity_id",
             name="uq_external_mapping_provider_entity",
         ),
     )

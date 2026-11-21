@@ -21,10 +21,27 @@ jobs:
   quality:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: backbone
+          POSTGRES_USER: backbone
+          POSTGRES_PASSWORD: backbone
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U backbone -d backbone"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://backbone:backbone@localhost:5432/backbone
 
     steps:
       - name: Check out repository
@@ -40,8 +57,11 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install dependencies
-        run: uv sync --extra dev
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Check formatting
+        run: uv run ruff format --check .
 
       - name: Lint
         run: uv run ruff check .
@@ -49,5 +69,26 @@ jobs:
       - name: Type check
         run: uv run mypy src
 
-      - name: Test
+      - name: Test (SQLite and PostgreSQL)
         run: uv run pytest
+
+      - name: Build and validate package
+        run: |
+          uv build
+          uv run twine check dist/*
+
+  container-smoke:
+    name: PostgreSQL + Docker Compose smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build and smoke test containers
+        run: make docker-test

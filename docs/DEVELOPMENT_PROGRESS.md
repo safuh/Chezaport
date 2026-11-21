@@ -1,63 +1,104 @@
-# Chezaport Development Progress
+# Chezaport development progress
 
 ## Product direction
 
-Chezaport is being developed into a sports information and analysis platform. The initial product scope is football-first, while the domain model and provider interfaces must remain extensible to other sports.
+Chezaport is a backend-first football information and analysis platform. The
+initial release is a modular monolith with a provider-neutral data model and
+football-first public API. It is not a frontend or mobile application.
 
 ## Engineering constraints
 
-- **No Redis.** Do not add Redis, Redis-backed caches, queues, or session storage.
-- **Free-first development.** Prefer free/open-source libraries and local development. Any hosted free tier or sports-data provider must have its quotas, attribution rules, freshness limits, and commercial-use restrictions documented before adoption.
-- **No paid dependency.** The initial development workflow must not require a paid API, paid database, or paid hosting plan.
-- **Modular monolith.** Keep domain logic inside Chezaport; do not introduce microservices prematurely.
-- **Compatibility.** Preserve existing authentication, health, database, and application-factory behavior unless a tested migration is explicitly planned.
+- No Redis, brokers, AI features, or premature microservices.
+- Free-first development; no paid provider or paid hosting requirement for local
+  development.
+- External provider use requires verified competition coverage, quota, freshness,
+  attribution, and data-use/redistribution rights.
+- Preserve existing authentication, health, database, and app-factory behavior.
+- Keep CI independent of provider credentials and live network calls.
 
-## Current baseline
+## Current repository state
 
 - Repository: [safuh/Chezaport](https://github.com/safuh/Chezaport)
-- Base branch: `main`
 - Working branch: `feature/sports-platform-foundation`
-- Existing stack: FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, SQLite for local development, PostgreSQL support, and `uv`.
-- Background execution: begin with explicit CLI commands and simple scheduled Python processes. Select a lightweight scheduler only when recurring jobs are needed; no broker is required for the initial design.
+- Updated upstream baseline: `0896e69`
+- Local working directory: `/home/harry/AceCode/FastApiBackbone-CLI/Chezaport`
+- Runtime: Python 3.11 virtual environment, uv, SQLite local default, PostgreSQL
+  support, Podman-compatible Docker CLI.
 
 ## Milestones
 
-| ID | Milestone | Status | Exit criteria |
-|---|---|---|---|
-| M0 | Repository baseline and progress tracking | Complete | Branch, issue tracker, constraints, and development log established |
-| M1 | API and sports domain foundation | Complete | Versioned API, domain package boundaries, tests, and documented conventions |
-| M2 | Core sports entities | Complete | Sport, country, competition, season, team, player, venue, fixture models and migrations |
-| M3 | Provider-neutral integration | Complete | Provider contracts, normalized schemas, external-ID mapping, and adapter tests |
-| M4 | Free-first data ingestion | In progress | Provider adapter, idempotent import/sync commands, retry policy, rate-limit handling, and no Redis/broker dependency |
-| M5 | Sports analytics | Not started | Standings, form, head-to-head, and match statistics with deterministic tests |
-| M6 | Public API and frontend readiness | Not started | Documented API endpoints, pagination/filtering, and stable response schemas |
-| M7 | Production hardening | Not started | Security review, observability, deployment guide, backups, and performance checks |
+| ID | Milestone | State |
+| --- | --- | --- |
+| M0 | Repository baseline and constraints | Complete |
+| M1 | Application and API foundation | Complete |
+| M2 | Persistence, identity, migrations | Implemented; SQLite and PostgreSQL migrations verified |
+| M3 | Optional identity/JWT lifecycle | Implemented and tested |
+| M4 | Sports domain, ingestion, and sync orchestration | Implemented; live provider adapter pending |
+| M5 | Read API and deterministic analytics | Implemented and contract-tested |
+| M6 | Release verification | Local gates passed; CI/security gates pending |
+| M7 | Staging/production operations | Compose assets and smoke test passed; hosted infrastructure pending |
 
-## Progress log
+## Work completed in this development increment
 
-### 2026-11-10
+- Added deterministic football standings from completed fixtures using 3-1-0
+  scoring and documented tie-break ordering.
+- Added recent team form and head-to-head aggregation services.
+- Added versioned read endpoints for sports, competitions, fixtures,
+  standings, team form, and head-to-head results.
+- Added analytics and HTTP contract tests, including exclusion of unfinished
+  fixtures.
+- Added a dedicated `staging` settings profile. Staging and production now both
+  require PostgreSQL, disable debug mode, and use JSON logs.
+- Added separate staging and production Compose definitions and deployment
+  scripts. Both bind to loopback and require an external TLS proxy/ingress.
+- Improved the Docker image to install locked runtime dependencies without
+  building/installing the project wheel in the image; `PYTHONPATH` points to
+  the source tree and the final image remains non-root.
+- Added a deployment runbook and corrected the MVP acceptance tracker so
+  implementation, verification, and infrastructure provisioning are distinct.
+- Integrated three upstream commits, including provider-neutral sync
+  orchestration, before resuming local work.
 
-- Created working branch `feature/sports-platform-foundation` from `main`.
-- Opened [GitHub issue #1](https://github.com/safuh/Chezaport/issues/1) as the milestone tracker.
-- Confirmed that Redis is excluded from the architecture.
-- Confirmed a free-first policy: no paid API or infrastructure dependency in the initial development path.
-- Added an explicit `/api/v1` router while preserving existing health and authentication routes at their current paths.
-- Established the `sports` and `sports.domain` package boundaries.
-- Added normalized `SportCode` and `FixtureStatus` domain enums so provider-specific status values can be mapped at integration boundaries.
+## Verification completed
 
-### 2026-11-10 — provider integration, ingestion, and validation
+- `make check`: 112 passed, 2 skipped, 2 dependency deprecation warnings.
+  Formatting, Ruff lint, and mypy all passed.
+- PostgreSQL-specific tests against a temporary local PostgreSQL 17 container:
+  2 passed. The temporary container was removed after the run.
+- `make docker-test`: passed. The image built, PostgreSQL became healthy, API
+  liveness/readiness returned `ok/ready`, all five Alembic revisions applied,
+  and the test stack/volume were removed.
+- `uv build`: source distribution and wheel built successfully.
+- `twine check dist/*`: both distribution artifacts passed.
+- Staging and production Compose configurations parsed successfully with
+  PostgreSQL URLs; all deployment shell scripts passed `bash -n`.
+- The package build emits setuptools deprecation warnings for the current
+  license metadata/classifier. They do not fail the build, but should be cleaned
+  up before a future packaging-toolchain upgrade.
 
-- Added normalized Pydantic schemas for competitions, seasons, teams, and fixtures, plus the async `SportsDataProvider` protocol.
-- Added typed provider errors, external-ID resolution, and transaction-safe ingestion for competitions, teams, seasons, and fixtures.
-- Added an idempotent canonical football bootstrap command: `uv run python -m chezaport.sports.seed`.
-- Tightened fixture ingestion so the competition and participating teams must resolve consistently to the same sport.
-- Added bounded asynchronous retry for temporary provider failures and rate limits, including Retry-After handling. Retry tests inject sleep and make no network requests.
-- Confirmed the English Premier League (EPL, canonical code `PL`) as the initial pilot. football-data.org is the approved initial provider, but its authenticated adapter remains paused until local credential configuration.
-- Documented free-tier limits: delayed data, 10 requests/minute, visible attribution, and no free live scores/deeper match statistics. Data-use and redistribution rights still require review before production use.
-- Added explicit provider routing and documented that the registry returns candidates rather than performing automatic failover.
-- Added explicit `ProviderCapabilities` declarations for canonical competition codes and resource families (competitions, seasons, teams, fixtures). The registry can now filter ordered candidates by exact resource support and rejects requests when no candidate declares coverage.
-- Added deterministic capability and resource-routing tests. This preparation is provider-independent: it uses no API token, network request, Redis, or paid dependency.
-- Added provider-neutral synchronization orchestration for competition discovery and competition-scoped seasons, teams, and fixtures. It applies bounded retries, selects the first capability-qualified route candidate, deliberately performs no automatic failover, and returns structured fetch/ingestion reports.
-- Added deterministic SQLite/stub-provider tests for resource filtering, retry behavior, explicit competition discovery, transaction ownership, and no automatic failover. No provider credentials, HTTP client, network access, Redis, scheduler, or paid service was introduced.
-- ADRs 0005 and 0006 document provider routing and capability declarations.
-- CI was last confirmed successful on run [#33](https://github.com/safuh/Chezaport/actions/runs/42878093037), before this capability increment. The new changes still require CI validation.
+## Provider decision gate
+
+The EPL (`PL`) / football-data.org technical pilot is the selected initial
+provider route. The authenticated adapter and scheduled synchronization remain
+to be completed after the API token is configured locally. The free plan is
+limited to 10 calls/minute and delayed scores/schedules; attribution and
+data-use/redistribution rights must be confirmed before public production use.
+No token is stored in the repository or chat.
+
+## Remaining release gates
+
+1. Run the updated GitHub Actions workflow on the pushed branch and resolve any
+   matrix-specific failures.
+2. Complete dependency audit and secret scanning.
+3. Implement the football-data.org adapter and authenticated sync command with
+   mocked HTTP tests; never require a provider token in CI.
+4. Configure the provider token locally and verify the EPL feed within its free
+   quota after confirming public-use terms.
+5. Provision real staging infrastructure (host, dedicated PostgreSQL, domain,
+   TLS/ingress, and protected secrets), deploy, and run smoke tests.
+6. Provision production infrastructure, encrypted backups, restore drills,
+   monitoring, edge rate limiting, and an operational rollback procedure.
+
+A hosted staging/production deployment cannot be completed from this repository
+alone: the owner must select/provision the infrastructure and provide protected
+runtime configuration outside Git.

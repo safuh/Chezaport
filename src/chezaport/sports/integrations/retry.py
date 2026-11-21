@@ -40,10 +40,7 @@ async def retry_provider_call(
             if attempt == max_attempts:
                 raise
 
-            if (
-                isinstance(exc, ProviderRateLimitError)
-                and exc.retry_after_seconds is not None
-            ):
+            if isinstance(exc, ProviderRateLimitError) and exc.retry_after_seconds is not None:
                 delay = max(0.0, exc.retry_after_seconds)
             else:
                 delay = min(

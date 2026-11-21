@@ -95,8 +95,7 @@ class SportsSyncService:
         provider = self._registry.get(provider_name)
         if ProviderResource.COMPETITIONS not in provider.capabilities.resources:
             raise ProviderConfigurationError(
-                f"provider {provider.provider_name} does not declare "
-                "support for competitions"
+                f"provider {provider.provider_name} does not declare support for competitions"
             )
         return await self._execute(
             provider=provider,
@@ -120,9 +119,7 @@ class SportsSyncService:
             competition_code=competition_code,
             resource=ProviderResource.SEASONS,
             fetch=lambda: provider.fetch_seasons(competition_external_id),
-            importer=SportsIngestionService(
-                self._session, provider.provider_name
-            ).import_seasons,
+            importer=SportsIngestionService(self._session, provider.provider_name).import_seasons,
         )
 
     async def sync_teams(
@@ -137,9 +134,7 @@ class SportsSyncService:
             competition_code=competition_code,
             resource=ProviderResource.TEAMS,
             fetch=lambda: provider.fetch_teams(competition_external_id),
-            importer=SportsIngestionService(
-                self._session, provider.provider_name
-            ).import_teams,
+            importer=SportsIngestionService(self._session, provider.provider_name).import_teams,
         )
 
     async def sync_fixtures(
@@ -161,9 +156,7 @@ class SportsSyncService:
                 season_external_id,
                 since=since,
             ),
-            importer=SportsIngestionService(
-                self._session, provider.provider_name
-            ).import_fixtures,
+            importer=SportsIngestionService(self._session, provider.provider_name).import_fixtures,
         )
 
     def _routed_provider(
@@ -199,9 +192,7 @@ class SportsSyncService:
             provider=provider.provider_name.strip().lower(),
             resource=resource,
             competition_code=(
-                competition_code.strip().upper()
-                if competition_code is not None
-                else None
+                competition_code.strip().upper() if competition_code is not None else None
             ),
             started_at=started_at,
             completed_at=datetime.now(UTC),

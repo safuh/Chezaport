@@ -1,17 +1,18 @@
-# Docker
+# Container assets
 
-The repository contains separate Docker Compose definitions for development and the reference production deployment path.
+- `Dockerfile`: locked, non-root production image.
+- `compose.yml`: local PostgreSQL + API development stack.
+- `compose.staging.yml`: staging API using an externally managed PostgreSQL DB.
+- `compose.production.yml`: production API using an externally managed PostgreSQL DB.
+- `scripts/docker-smoke.sh`: disposable local PostgreSQL/Compose smoke test.
+- `scripts/docker-staging.sh`: build, migrate, deploy, and readiness-check staging.
+- `scripts/docker-production.sh`: build, migrate, deploy, and readiness-check production.
 
-## Production image contract
+Staging and production require a PostgreSQL asyncpg URL, force debug mode off,
+and bind the API to loopback. Public HTTPS must be terminated by a separately
+managed reverse proxy or ingress. Credentials must be supplied through protected
+deployment environment variables or a secret manager; never bake secrets into
+the image or commit them to the repository.
 
-- multi-stage build where useful;
-- non-root runtime user;
-- deterministic dependency installation from `uv.lock`;
-- no development dependencies in production;
-- process-level health endpoint;
-- graceful container shutdown through the application process; and
-- no secrets baked into image layers.
-
-The production image is built by `docker/Dockerfile`. The reference production deployment is defined by `docker/compose.production.yml` and orchestrated by `scripts/docker-production.sh` / `make docker-prod`.
-
-Production credentials are supplied externally. The production Compose definition requires `DATABASE_URL` and does not define database credentials or other secrets.
+See [the deployment runbook](../docs/DEPLOYMENT_RUNBOOK.md) for preflight,
+release, rollback, and infrastructure requirements.

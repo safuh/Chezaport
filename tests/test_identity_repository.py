@@ -24,9 +24,7 @@ async def test_user_credential_repository_returns_credentials() -> None:
         session.add(user)
         await session.commit()
 
-        credentials = await UserCredentialRepository(session).get_by_identifier(
-            "alice@example.com"
-        )
+        credentials = await UserCredentialRepository(session).get_by_identifier("alice@example.com")
 
         assert credentials is not None
         assert credentials.subject == user.id
@@ -41,8 +39,7 @@ async def test_user_credential_repository_returns_none_for_unknown_identifier() 
     engine, _, session = await _session()
     try:
         assert (
-            await UserCredentialRepository(session).get_by_identifier("missing@example.com")
-            is None
+            await UserCredentialRepository(session).get_by_identifier("missing@example.com") is None
         )
     finally:
         await session.close()

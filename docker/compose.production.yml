@@ -7,13 +7,14 @@ services:
       APP_NAME: ${APP_NAME:-Chezaport}
       APP_VERSION: ${APP_VERSION:-0.1.0}
       ENVIRONMENT: production
+      DEBUG: "false"
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_JSON: "true"
       CORS_ORIGINS: ${CORS_ORIGINS:-[]}
       CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-false}
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/live', timeout=2)"]

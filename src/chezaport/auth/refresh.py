@@ -68,9 +68,7 @@ class RefreshTokenService:
         return RefreshResult(
             subject=subject,
             access_token=access_token
-            or self.token_service.create(
-                subject, self.access_token_lifetime, token_type="access"
-            ),
+            or self.token_service.create(subject, self.access_token_lifetime, token_type="access"),
             refresh_token=self.token_service.create(
                 subject,
                 self.refresh_token_lifetime,

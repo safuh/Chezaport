@@ -1,41 +1,151 @@
 # Chezaport
 
-A backend service generated from [FastApiBackbone](https://github.com/safuh/FastApiBackbone).
+Chezaport is a backend-first football information platform built on
+[FastApiBackbone](https://github.com/safuh/FastApiBackbone). The MVP is a modular
+monolith with a provider-neutral sports domain, ingestion boundary, public read
+API, and deterministic football analytics.
 
-**Stack:** FastAPI · Pydantic · SQLAlchemy 2.x · Alembic · PostgreSQL
+**Stack:** Python 3.11+ · FastAPI · Pydantic v2 · SQLAlchemy 2.x · Alembic ·
+SQLite (local) · PostgreSQL (staging/production) · Docker Compose.
+
+## MVP scope
+
+- Canonical sports catalogue: sports, countries, competitions, seasons, teams,
+  players, venues, memberships, fixtures, and provider ID mappings.
+- Provider-neutral normalized schemas, capability-based provider routing,
+  bounded retry policy, and transaction-safe/idempotent ingestion services.
+- Versioned read API for sports, competitions, fixtures, standings, team form,
+  and head-to-head results.
+- Optional Argon2/JWT identity composition with registration, login, refresh
+  rotation, logout, and refresh-token revocation.
+- Health/readiness endpoints, correlation IDs, structured logging, migrations,
+  and container deployment assets.
+
+The MVP is API/backend only. It does not include a web/mobile frontend, AI
+features, Redis, message brokers, or microservices.
 
 ## Quick start
 
-Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), and Docker if you use
-the container workflow.
+Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), and optionally
+Podman/Docker with Compose.
 
 ```bash
-uv sync --extra dev
+uv sync --locked --extra dev
 cp .env.example .env
 make check
+make migrate-up
+uv run python -m chezaport.sports.seed
 make run
 ```
 
-The API documentation is available at http://127.0.0.1:8000/docs.
+- API discovery: http://127.0.0.1:8000/api/v1/
+- Swagger UI: http://127.0.0.1:8000/docs
+- Liveness: http://127.0.0.1:8000/api/health/live
+- Readiness: http://127.0.0.1:8000/api/health/ready
 
-## Database
+SQLite is the default local database. Alembic migrations are required before
+using persistent data. The default sports seed is idempotent.
 
-SQLite is configured for local development. Configure `DATABASE_URL` in `.env`
-for PostgreSQL, then run:
+## Public API
+
+All product endpoints are under `/api/v1`.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/sports` | Active sports |
+| GET | `/competitions` | Competitions, optionally filtered by `sport_id` |
+| GET | `/fixtures` | Filtered fixtures with bounded pagination |
+| GET | `/competitions/{competition_id}/standings?season_id=...` | 3-1-0 league table |
+| GET | `/teams/{team_id}/form?competition_id=...&season_id=...` | Recent completed results |
+| GET | `/teams/head-to-head?... ` | Completed meetings between two teams |
+
+Standings use points, goal difference, goals scored, then team name as tie-break
+order. Only finished fixtures with both scores are counted. Fixture timestamps
+must be timezone-aware at ingestion boundaries.
+
+## Authentication
+
+Authentication is optional and must be explicitly composed by the consuming
+application. The API returns 503 for auth endpoints until an
+`AuthenticationApplication` factory is supplied. Do not treat the presence of
+the auth module as an enabled user-management system. See
+[security guidance](docs/SECURITY.md).
+
+## Data providers
+
+The domain and ingestion services are provider-neutral. No live external
+provider is enabled by default. The EPL/football-data.org pilot remains subject
+to owner approval, token configuration, current quota/freshness verification,
+attribution, and confirmation of data-use/redistribution rights. Do not scrape
+or publish data from a provider until its terms permit the intended use. Provider
+credentials belong in protected runtime environment variables, never in Git or
+chat. See the provider decisions in `docs/decisions/`.
+
+## Local PostgreSQL integration
+
+The Compose development stack runs PostgreSQL internally and does not bind
+host port 5432:
 
 ```bash
-make migrate-up
+make docker-up
+docker compose -f docker/compose.yml exec -T api alembic upgrade head
+docker compose -f docker/compose.yml exec -T api python -m chezaport.sports.seed
+make docker-down
 ```
 
-## Deployment
+The disposable end-to-end smoke test builds the image, starts PostgreSQL and the
+API, checks liveness/readiness, applies migrations, and removes its test volume:
 
-Docker assets are included.
-Kubernetes/Kustomize manifests are not included.
+```bash
+make docker-test
+```
 
-## Architecture
+## Staging deployment
 
-The project includes a FastAPI application factory, Pydantic Settings, async SQLAlchemy persistence,
-Alembic migrations, health/readiness endpoints, structured logging, authentication primitives,
-and tests. Review the security documentation before enabling authentication in production.
+Staging requires a dedicated PostgreSQL database and protected deployment
+environment variables. It deliberately uses production-like validation, JSON
+logs, and no debug mode.
 
-This project is an independent copy. It does not retain the source repository's Git history.
+```bash
+export DATABASE_URL='postgresql+asyncpg://USER:PASSWORD@HOST:5432/chezaport_staging'
+export APP_PORT=8001
+export CORS_ORIGINS='["https://staging.example.com"]'
+make docker-staging
+```
+
+The service binds to loopback only. Put it behind a TLS-terminating reverse
+proxy or managed ingress. Use a separate staging database; never point staging
+at production data.
+
+## Production deployment
+
+```bash
+export DATABASE_URL='postgresql+asyncpg://USER:PASSWORD@HOST:5432/chezaport'
+export APP_PORT=8000
+export CORS_ORIGINS='["https://app.example.com"]'
+make docker-prod
+```
+
+The production script validates Compose configuration, builds the locked
+non-root image, runs Alembic as a one-shot migration, starts the API, and waits
+for readiness. The container is bound to loopback so a separately managed TLS
+proxy/ingress can expose HTTPS. Store secrets in the host's secret manager or
+deployment environment, not in a committed file.
+
+Before public production traffic, configure TLS, strict CORS, database network
+allowlists, automated encrypted backups and restore drills, monitoring/alerting,
+edge rate limiting, and an operational rollback procedure. Database migrations
+must be reviewed for backward compatibility before rolling out multiple API
+replicas.
+
+## Quality gates
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy src
+uv run pytest
+```
+
+PostgreSQL integration tests run when `TEST_DATABASE_URL` is configured. The
+local SQLite suite does not replace PostgreSQL migration/transaction testing.

@@ -35,9 +35,7 @@ class ProviderCapabilities:
         object.__setattr__(self, "competition_codes", codes)
         object.__setattr__(self, "resources", resources)
 
-    def supports(
-        self, competition_code: str, resource: ProviderResource
-    ) -> bool:
+    def supports(self, competition_code: str, resource: ProviderResource) -> bool:
         """Return whether this provider explicitly declares the requested coverage."""
         return (
             competition_code.strip().upper() in self.competition_codes

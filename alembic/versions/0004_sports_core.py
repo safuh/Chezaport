@@ -135,9 +135,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_team_memberships_player_id", "team_memberships", ["player_id"], unique=False
     )
-    op.create_index(
-        "ix_team_memberships_team_id", "team_memberships", ["team_id"], unique=False
-    )
+    op.create_index("ix_team_memberships_team_id", "team_memberships", ["team_id"], unique=False)
     op.create_table(
         "fixtures",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -157,9 +155,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.CheckConstraint(
-            "home_team_id <> away_team_id", name="ck_fixtures_distinct_teams"
-        ),
+        sa.CheckConstraint("home_team_id <> away_team_id", name="ck_fixtures_distinct_teams"),
         sa.CheckConstraint(
             "status IN ('scheduled', 'live', 'halftime', 'finished', 'postponed', "
             "'suspended', 'abandoned', 'cancelled')",

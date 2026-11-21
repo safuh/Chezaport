@@ -43,19 +43,13 @@ class StubProvider:
     def capabilities(self) -> ProviderCapabilities:
         return self._capabilities
 
-    async def fetch_competitions(
-        self, sport_code: str
-    ) -> list[ProviderCompetition]:
+    async def fetch_competitions(self, sport_code: str) -> list[ProviderCompetition]:
         return []
 
-    async def fetch_seasons(
-        self, competition_external_id: str
-    ) -> list[ProviderSeason]:
+    async def fetch_seasons(self, competition_external_id: str) -> list[ProviderSeason]:
         return []
 
-    async def fetch_teams(
-        self, competition_external_id: str
-    ) -> list[ProviderTeam]:
+    async def fetch_teams(self, competition_external_id: str) -> list[ProviderTeam]:
         return []
 
     async def fetch_fixtures(
@@ -74,9 +68,7 @@ def test_registry_returns_candidates_in_configured_order() -> None:
     secondary = StubProvider("alternate")
     registry.register(primary)
     registry.register(secondary)
-    registry.set_route(
-        CompetitionProviderRoute(" pl ", ("FOOTBALL-DATA", "Alternate"))
-    )
+    registry.set_route(CompetitionProviderRoute(" pl ", ("FOOTBALL-DATA", "Alternate")))
 
     candidates = registry.providers_for_competition("PL")
 
@@ -97,12 +89,11 @@ def test_registry_filters_candidates_by_declared_resource_support() -> None:
     registry.register(secondary)
     registry.set_route(CompetitionProviderRoute("PL", ("primary", "secondary")))
 
-    assert registry.providers_for_competition(
-        "PL", resource=ProviderResource.TEAMS
-    ) == (secondary,)
-    assert registry.providers_for_competition(
-        "PL", resource=ProviderResource.FIXTURES
-    ) == (primary, secondary)
+    assert registry.providers_for_competition("PL", resource=ProviderResource.TEAMS) == (secondary,)
+    assert registry.providers_for_competition("PL", resource=ProviderResource.FIXTURES) == (
+        primary,
+        secondary,
+    )
 
 
 def test_registry_rejects_resource_without_a_declared_provider() -> None:
@@ -119,9 +110,7 @@ def test_registry_rejects_resource_without_a_declared_provider() -> None:
         ProviderConfigurationError,
         match="no routed provider declares support",
     ):
-        registry.providers_for_competition(
-            "PL", resource=ProviderResource.TEAMS
-        )
+        registry.providers_for_competition("PL", resource=ProviderResource.TEAMS)
 
 
 def test_provider_capabilities_normalize_codes_and_resource_values() -> None:

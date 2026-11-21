@@ -71,9 +71,7 @@ async def test_team_import_updates_existing_canonical_record(session_factory) ->
             slug="sample-fc",
             short_name="OLD",
         )
-        revised = original.model_copy(
-            update={"name": "New Name", "short_name": "NEW"}
-        )
+        revised = original.model_copy(update={"name": "New Name", "short_name": "NEW"})
 
         created = await service.import_teams([original])
         updated = await service.import_teams([revised])
@@ -134,7 +132,6 @@ async def test_competition_import_requires_seeded_country(session_factory) -> No
         assert "canonical country is not seeded" in (report.items[0].error or "")
         assert await session.scalar(select(func.count()).select_from(Competition)) == 0
         await session.commit()
-
 
 
 async def test_season_and_fixture_import_resolve_dependencies(session_factory) -> None:
