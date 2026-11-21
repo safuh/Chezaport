@@ -29,6 +29,7 @@ class ProviderCompetition(ProviderPayload):
     slug: str = Field(min_length=1, max_length=180)
     sport_code: str = Field(default="football", min_length=1, max_length=32)
     country_code: str | None = Field(default=None, max_length=3)
+    country_name: str | None = Field(default=None, max_length=120)
     competition_type: str = Field(default="league", min_length=1, max_length=32)
 
 
@@ -55,6 +56,7 @@ class ProviderTeam(ProviderPayload):
     slug: str = Field(min_length=1, max_length=180)
     sport_code: str = Field(default="football", min_length=1, max_length=32)
     country_code: str | None = Field(default=None, max_length=3)
+    country_name: str | None = Field(default=None, max_length=120)
     short_name: str | None = Field(default=None, max_length=40)
 
 

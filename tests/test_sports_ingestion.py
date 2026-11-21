@@ -13,6 +13,7 @@ from chezaport.sports.integrations.schemas import (
 )
 from chezaport.sports.models import (
     Competition,
+    Country,
     ExternalIDMapping,
     Fixture,
     Season,
@@ -131,6 +132,27 @@ async def test_competition_import_requires_seeded_country(session_factory) -> No
         assert report.failed == 1
         assert "canonical country is not seeded" in (report.items[0].error or "")
         assert await session.scalar(select(func.count()).select_from(Competition)) == 0
+        await session.commit()
+
+
+async def test_competition_import_creates_country_from_provider_metadata(session_factory) -> None:
+    async with session_factory() as session:
+        await seed_football(session)
+        service = SportsIngestionService(session, "sample")
+        record = ProviderCompetition(
+            external_id="league-england",
+            name="Premier League",
+            slug="pl",
+            country_code="ENG",
+            country_name="England",
+        )
+
+        report = await service.import_competitions([record])
+        country = await session.scalar(select(Country).where(Country.code == "ENG"))
+
+        assert report.created == 1
+        assert country is not None
+        assert country.name == "England"
         await session.commit()
 
 

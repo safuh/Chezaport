@@ -73,13 +73,29 @@ the auth module as an enabled user-management system. See
 
 ## Data providers
 
-The domain and ingestion services are provider-neutral. No live external
-provider is enabled by default. The EPL/football-data.org pilot remains subject
-to owner approval, token configuration, current quota/freshness verification,
-attribution, and confirmation of data-use/redistribution rights. Do not scrape
-or publish data from a provider until its terms permit the intended use. Provider
-credentials belong in protected runtime environment variables, never in Git or
-chat. See the provider decisions in `docs/decisions/`.
+The domain and ingestion services are provider-neutral. A read-only
+football-data.org v4 adapter is implemented with normalized competition, season,
+team, and fixture mapping, typed rate-limit/error handling, and mocked HTTP
+contract tests. The adapter is not enabled by default; configure
+`FOOTBALL_DATA_API_TOKEN` and `FOOTBALL_DATA_COMPETITION_CODES` in a protected
+runtime environment to register its competition routes. No token is needed for
+local development or CI. After verifying the provider's terms for the intended
+use, run a one-shot, idempotent local sync with:
+
+```bash
+uv run python -m chezaport.sports.sync --competition PL --since 2026-08-01
+```
+
+The command syncs the configured competition catalogue, seasons, teams, and
+fixtures in one transaction; it aborts rather than committing partial ingestion
+if a record fails. The provider documents a free-plan limit of 10 calls per
+minute and restricted competition/resource coverage; check the current
+[API quickstart](https://www.football-data.org/documentation/quickstart) and
+[API policies](https://docs.football-data.org/general/v4/policies.html) before
+scheduling synchronization. Public display, attribution, caching, and
+redistribution rights must be confirmed for the intended use before production
+publication. Provider credentials belong in protected runtime environment
+variables, never in Git or chat. See the provider decisions in `docs/decisions/`.
 
 ## Local PostgreSQL integration
 

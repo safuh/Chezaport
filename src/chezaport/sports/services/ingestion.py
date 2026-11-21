@@ -355,15 +355,25 @@ class SportsIngestionService:
             raise ValueError(f"canonical sport is not seeded: {sport_code}")
         return sport_id
 
-    async def _country_id(self, country_code: str | None) -> str | None:
+    async def _country_id(
+        self,
+        country_code: str | None,
+        country_name: str | None = None,
+    ) -> str | None:
         if country_code is None:
             return None
-        country_id = await self._session.scalar(
-            select(Country.id).where(Country.code == country_code.upper())
-        )
-        if country_id is None:
-            raise ValueError(f"canonical country is not seeded: {country_code}")
-        return country_id
+        normalized_code = country_code.upper()
+        country = await self._session.scalar(select(Country).where(Country.code == normalized_code))
+        if country is None:
+            if not country_name:
+                raise ValueError(f"canonical country is not seeded: {country_code}")
+            country = Country(code=normalized_code, name=country_name)
+            self._session.add(country)
+            await self._session.flush()
+        elif country_name and country.name != country_name:
+            country.name = country_name
+            await self._session.flush()
+        return country.id
 
     async def _upsert_competition(self, record: ProviderCompetition) -> IngestionItemResult:
         sport_id = await self._sport_id(record.sport_code)
@@ -394,14 +404,14 @@ class SportsIngestionService:
                 name=record.name,
                 slug=record.slug,
                 competition_type=record.competition_type,
-                country_id=await self._country_id(record.country_code),
+                country_id=await self._country_id(record.country_code, record.country_name),
             )
             self._session.add(competition)
             await self._session.flush()
             changed = True
         else:
             country_id = (
-                await self._country_id(record.country_code)
+                await self._country_id(record.country_code, record.country_name)
                 if record.country_code is not None
                 else competition.country_id
             )
@@ -462,14 +472,14 @@ class SportsIngestionService:
                 name=record.name,
                 slug=record.slug,
                 short_name=record.short_name,
-                country_id=await self._country_id(record.country_code),
+                country_id=await self._country_id(record.country_code, record.country_name),
             )
             self._session.add(team)
             await self._session.flush()
             changed = True
         else:
             country_id = (
-                await self._country_id(record.country_code)
+                await self._country_id(record.country_code, record.country_name)
                 if record.country_code is not None
                 else team.country_id
             )

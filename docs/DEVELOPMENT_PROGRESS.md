@@ -20,7 +20,7 @@ football-first public API. It is not a frontend or mobile application.
 
 - Repository: [safuh/Chezaport](https://github.com/safuh/Chezaport)
 - Working branch: `feature/sports-platform-foundation`
-- Updated upstream baseline: `0896e69`
+- Latest pushed baseline: `e457051` (sports analytics and deployment hardening)
 - Local working directory: `/home/harry/AceCode/FastApiBackbone-CLI/Chezaport`
 - Runtime: Python 3.11 virtual environment, uv, SQLite local default, PostgreSQL
   support, Podman-compatible Docker CLI.
@@ -33,7 +33,7 @@ football-first public API. It is not a frontend or mobile application.
 | M1 | Application and API foundation | Complete |
 | M2 | Persistence, identity, migrations | Implemented; SQLite and PostgreSQL migrations verified |
 | M3 | Optional identity/JWT lifecycle | Implemented and tested |
-| M4 | Sports domain, ingestion, and sync orchestration | Implemented; live provider adapter pending |
+| M4 | Sports domain, ingestion, provider adapter, and manual sync orchestration | Implemented; live credentials and scheduled sync pending |
 | M5 | Read API and deterministic analytics | Implemented and contract-tested |
 | M6 | Release verification | Local gates passed; CI/security gates pending |
 | M7 | Staging/production operations | Compose assets and smoke test passed; hosted infrastructure pending |
@@ -58,17 +58,31 @@ football-first public API. It is not a frontend or mobile application.
   implementation, verification, and infrastructure provisioning are distinct.
 - Integrated three upstream commits, including provider-neutral sync
   orchestration, before resuming local work.
+- Implemented a read-only football-data.org v4 adapter for competitions,
+  seasons, teams, and fixtures, including provider status normalization,
+  timeout/server/rate-limit handling, and a configurable provider registry.
+- Added mocked HTTP contract tests for response normalization, credentials,
+  rate-limit behavior, and explicit competition routing.
+- Added a manual one-shot sync CLI that imports the configured competition
+  catalogue, seasons, teams, and fixtures in one transaction. It aborts on
+  record-level ingestion failures and keeps credentials out of command output.
+- Added country metadata upsert from provider area names/codes so competition
+  ingestion does not depend on a separately pre-seeded country catalogue.
+  CI remains independent of provider credentials and live network calls.
 
 ## Verification completed
 
-- `make check`: 112 passed, 2 skipped, 2 dependency deprecation warnings.
+- `make check`: 127 passed, 2 skipped, 2 dependency deprecation warnings.
+  Formatting, Ruff lint, and mypy all passed after the provider adapter and
+  manual sync command were added.
   Formatting, Ruff lint, and mypy all passed.
 - PostgreSQL-specific tests against a temporary local PostgreSQL 17 container:
   2 passed. The temporary container was removed after the run.
 - `make docker-test`: passed. The image built, PostgreSQL became healthy, API
   liveness/readiness returned `ok/ready`, all five Alembic revisions applied,
   and the test stack/volume were removed.
-- `uv build`: source distribution and wheel built successfully.
+- `uv build`: source distribution and wheel built successfully with the
+  provider adapter and manual sync command included.
 - `twine check dist/*`: both distribution artifacts passed.
 - Staging and production Compose configurations parsed successfully with
   PostgreSQL URLs; all deployment shell scripts passed `bash -n`.
@@ -79,21 +93,22 @@ football-first public API. It is not a frontend or mobile application.
 ## Provider decision gate
 
 The EPL (`PL`) / football-data.org technical pilot is the selected initial
-provider route. The authenticated adapter and scheduled synchronization remain
-to be completed after the API token is configured locally. The free plan is
-limited to 10 calls/minute and delayed scores/schedules; attribution and
-data-use/redistribution rights must be confirmed before public production use.
-No token is stored in the repository or chat.
+provider route. The read-only adapter, registry composition, and manual one-shot sync command
+are implemented. Local credentials, live feed verification, and an optional
+scheduled sync remain pending. The provider documents a 10 calls/minute free-plan
+limit and plan-dependent coverage. Attribution and data-use/redistribution
+rights must be confirmed before public production use. No token is stored in the
+repository or chat.
 
 ## Remaining release gates
 
 1. Run the updated GitHub Actions workflow on the pushed branch and resolve any
    matrix-specific failures.
 2. Complete dependency audit and secret scanning.
-3. Implement the football-data.org adapter and authenticated sync command with
-   mocked HTTP tests; never require a provider token in CI.
-4. Configure the provider token locally and verify the EPL feed within its free
-   quota after confirming public-use terms.
+3. Configure the provider token locally and verify the EPL feed within the
+   documented quota after confirming public-use terms.
+4. Add a scheduler only after freshness, quota, and provider terms are approved;
+   keep scheduled jobs idempotent and provider tokens out of CI.
 5. Provision real staging infrastructure (host, dedicated PostgreSQL, domain,
    TLS/ingress, and protected secrets), deploy, and run smoke tests.
 6. Provision production infrastructure, encrypted backups, restore drills,

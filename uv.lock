@@ -446,6 +446,58 @@ wheels = [
 ]
 
 [[package]]
+name = "chezaport"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiosqlite" },
+    { name = "alembic" },
+    { name = "asyncpg" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "pwdlib", extra = ["argon2"] },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyjwt" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "structlog" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "build" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+    { name = "twine" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.20,<1.0" },
+    { name = "alembic", specifier = ">=1.13,<2.0" },
+    { name = "asyncpg", specifier = ">=0.29,<1.0" },
+    { name = "build", marker = "extra == 'dev'", specifier = ">=1.2,<2.0" },
+    { name = "fastapi", specifier = ">=0.115,<1.0" },
+    { name = "httpx", specifier = ">=0.28,<1.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11,<2.0" },
+    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.2,<1.0" },
+    { name = "pydantic", specifier = ">=2.8,<3.0" },
+    { name = "pydantic-settings", specifier = ">=2.4,<3.0" },
+    { name = "pyjwt", specifier = ">=2.9,<3.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4,<9.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4,<2.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6,<1.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.30,<3.0" },
+    { name = "structlog", specifier = ">=24.4,<26.0" },
+    { name = "twine", marker = "extra == 'dev'", specifier = ">=5.1,<7.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "click"
 version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -529,58 +581,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/8a/02/91e3416a8fdd715ab
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/03/10388a42375ee7e4ac9b94eb2c5c569c8b5795e377e701c9ac3ad63de890/fastapi-0.141.1-py3-none-any.whl", hash = "sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3", size = 131954, upload-time = "2026-07-29T17:18:04.364Z" },
 ]
-
-[[package]]
-name = "chezaport"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aiosqlite" },
-    { name = "alembic" },
-    { name = "asyncpg" },
-    { name = "fastapi" },
-    { name = "pwdlib", extra = ["argon2"] },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyjwt" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "structlog" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "build" },
-    { name = "httpx" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-    { name = "twine" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiosqlite", specifier = ">=0.20,<1.0" },
-    { name = "alembic", specifier = ">=1.13,<2.0" },
-    { name = "asyncpg", specifier = ">=0.29,<1.0" },
-    { name = "build", marker = "extra == 'dev'", specifier = ">=1.2,<2.0" },
-    { name = "fastapi", specifier = ">=0.115,<1.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28,<1.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11,<2.0" },
-    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.2,<1.0" },
-    { name = "pydantic", specifier = ">=2.8,<3.0" },
-    { name = "pydantic-settings", specifier = ">=2.4,<3.0" },
-    { name = "pyjwt", specifier = ">=2.9,<3.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4,<9.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4,<2.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6,<1.0" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.30,<3.0" },
-    { name = "structlog", specifier = ">=24.4,<26.0" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=5.1,<7.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30,<1.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "greenlet"

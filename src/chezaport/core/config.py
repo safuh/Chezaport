@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_json: bool = False
     cors_origins: list[str] = Field(default_factory=list)
+    football_data_api_token: str | None = None
+    football_data_competition_codes: list[str] = Field(default_factory=lambda: ["PL"])
     cors_allow_credentials: bool = False
     cors_allow_methods: list[str] = Field(
         default_factory=lambda: [
