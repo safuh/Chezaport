@@ -26,6 +26,7 @@ from chezaport.sports.services.analytics import (
     calculate_head_to_head,
     calculate_standings,
     calculate_team_form,
+    calculate_team_season_statistics,
 )
 
 router = APIRouter(tags=["sports"])
@@ -598,6 +599,25 @@ async def competition_standings(
         "scoring": {"win": 3, "draw": 1, "loss": 0},
         "tie_breakers": ["points", "goal_difference", "goals_for", "team_name"],
         "standings": rows,
+    }
+
+
+@router.get("/teams/{team_id}/statistics")
+async def team_season_statistics(
+    team_id: str, session: SessionDep, competition_id: str, season_id: str
+) -> dict[str, object]:
+    """Return a team's season totals and home/away performance split."""
+    await _validate_competition_season(session, competition_id, season_id)
+    if await session.get(Team, team_id) is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+    statistics = await calculate_team_season_statistics(
+        session, competition_id=competition_id, season_id=season_id, team_id=team_id
+    )
+    return {
+        "team_id": team_id,
+        "competition_id": competition_id,
+        "season_id": season_id,
+        "statistics": statistics,
     }
 
 

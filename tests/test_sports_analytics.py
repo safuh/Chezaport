@@ -12,6 +12,7 @@ from chezaport.sports.services.analytics import (
     calculate_head_to_head,
     calculate_standings,
     calculate_team_form,
+    calculate_team_season_statistics,
 )
 
 
@@ -110,6 +111,34 @@ async def test_standings_ignore_unfinished_fixtures_and_apply_three_one_zero(ana
     assert table[0]["form"] == "WD"
     assert table[1]["points"] == 1
     assert third_id not in {row["team_id"] for row in table}
+
+
+async def test_team_season_statistics_include_home_away_splits(analytics_session):
+    session, competition_id, season_id, home_id, _, third_id = analytics_session
+    statistics = await calculate_team_season_statistics(
+        session, competition_id=competition_id, season_id=season_id, team_id=home_id
+    )
+    assert statistics["played"] == 2
+    assert statistics["won"] == 1
+    assert statistics["drawn"] == 1
+    assert statistics["lost"] == 0
+    assert statistics["goals_for"] == 3
+    assert statistics["goals_against"] == 1
+    assert statistics["clean_sheets"] == 1
+    assert statistics["win_rate"] == 50.0
+    assert statistics["home"]["played"] == 1
+    assert statistics["home"]["won"] == 1
+    assert statistics["away"]["played"] == 1
+    assert statistics["away"]["drawn"] == 1
+    assert statistics["biggest_win"]["goal_margin"] == 2
+
+    empty = await calculate_team_season_statistics(
+        session, competition_id=competition_id, season_id=season_id, team_id=third_id
+    )
+    assert empty["played"] == 0
+    assert empty["win_rate"] is None
+    assert empty["home"]["win_rate"] is None
+    assert empty["biggest_win"] is None
 
 
 async def test_team_form_is_newest_first_and_limited(analytics_session):

@@ -117,6 +117,10 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             f"/api/v1/teams/{team_id}/form",
             params={"competition_id": competition_id, "season_id": season_id},
         )
+        team_statistics = client.get(
+            f"/api/v1/teams/{team_id}/statistics",
+            params={"competition_id": competition_id, "season_id": season_id},
+        )
         countries = client.get("/api/v1/countries", params={"search": "United"})
         venues = client.get("/api/v1/venues", params={"search": "Alpha Ground"})
         teams = client.get(
@@ -162,6 +166,10 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert standings.json()["standings"][0]["points"] == 3
     assert form.status_code == 200
     assert form.json()["form"][0]["outcome"] == "W"
+    assert team_statistics.status_code == 200
+    assert team_statistics.json()["statistics"]["goals_for"] == 2
+    assert team_statistics.json()["statistics"]["clean_sheets"] == 1
+    assert team_statistics.json()["statistics"]["home"]["win_rate"] == 100.0
     assert countries.status_code == 200
     assert countries.json()["total"] == 1
     assert countries.json()["items"][0]["code"] == "GBR"

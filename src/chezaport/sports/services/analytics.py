@@ -186,6 +186,99 @@ async def calculate_standings(
     return [row.as_dict(position) for position, row in enumerate(ordered, start=1)]
 
 
+async def calculate_team_season_statistics(
+    session: AsyncSession, *, competition_id: str, season_id: str, team_id: str
+) -> dict[str, object]:
+    """Calculate a team's season record and home/away split from finished fixtures."""
+    fixtures = await _finished_fixtures(session, competition_id=competition_id, season_id=season_id)
+    played = won = drawn = lost = goals_for = goals_against = clean_sheets = 0
+    home_played = home_won = home_drawn = home_lost = home_goals_for = home_goals_against = 0
+    away_played = away_won = away_drawn = away_lost = away_goals_for = away_goals_against = 0
+    biggest_win: dict[str, object] | None = None
+    biggest_margin = 0
+    for fixture, home_name, away_name in fixtures:
+        if team_id not in (fixture.home_team_id, fixture.away_team_id):
+            continue
+        assert fixture.home_score is not None and fixture.away_score is not None
+        is_home = fixture.home_team_id == team_id
+        scored = fixture.home_score if is_home else fixture.away_score
+        conceded = fixture.away_score if is_home else fixture.home_score
+        played += 1
+        goals_for += scored
+        goals_against += conceded
+        clean_sheets += int(conceded == 0)
+        prefix = "home" if is_home else "away"
+        if is_home:
+            home_played += 1
+            home_goals_for += scored
+            home_goals_against += conceded
+        else:
+            away_played += 1
+            away_goals_for += scored
+            away_goals_against += conceded
+        outcome = "won" if scored > conceded else "lost" if scored < conceded else "drawn"
+        if outcome == "won":
+            won += 1
+        elif outcome == "lost":
+            lost += 1
+        else:
+            drawn += 1
+        if is_home:
+            home_won += int(outcome == "won")
+            home_drawn += int(outcome == "drawn")
+            home_lost += int(outcome == "lost")
+        else:
+            away_won += int(outcome == "won")
+            away_drawn += int(outcome == "drawn")
+            away_lost += int(outcome == "lost")
+        margin = scored - conceded
+        if margin > biggest_margin:
+            biggest_margin = margin
+            biggest_win = {
+                "fixture_id": fixture.id,
+                "kickoff_at": fixture.kickoff_at,
+                "opponent_id": fixture.away_team_id if is_home else fixture.home_team_id,
+                "opponent_name": away_name if is_home else home_name,
+                "venue": prefix,
+                "goals_for": scored,
+                "goals_against": conceded,
+                "goal_margin": margin,
+            }
+
+    def split(
+        matches: int, wins: int, draws: int, losses: int, scored: int, conceded: int
+    ) -> dict[str, object]:
+        return {
+            "played": matches,
+            "won": wins,
+            "drawn": draws,
+            "lost": losses,
+            "goals_for": scored,
+            "goals_against": conceded,
+            "goal_difference": scored - conceded,
+            "win_rate": round(wins / matches * 100, 2) if matches else None,
+        }
+
+    return {
+        "played": played,
+        "won": won,
+        "drawn": drawn,
+        "lost": lost,
+        "goals_for": goals_for,
+        "goals_against": goals_against,
+        "goal_difference": goals_for - goals_against,
+        "clean_sheets": clean_sheets,
+        "win_rate": round(won / played * 100, 2) if played else None,
+        "home": split(
+            home_played, home_won, home_drawn, home_lost, home_goals_for, home_goals_against
+        ),
+        "away": split(
+            away_played, away_won, away_drawn, away_lost, away_goals_for, away_goals_against
+        ),
+        "biggest_win": biggest_win,
+    }
+
+
 async def calculate_team_form(
     session: AsyncSession,
     *,
