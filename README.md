@@ -54,14 +54,20 @@ All product endpoints are under `/api/v1`.
 | --- | --- | --- |
 | GET | `/sports` | Active sports |
 | GET | `/competitions` | Competitions, optionally filtered by `sport_id` |
+| GET | `/teams` | Teams, filterable by sport, country, competition, and season |
+| GET | `/seasons` | Competition seasons and current-season filter |
+| GET | `/players` | Player search by name, nationality, and position |
+| GET | `/players/{player_id}` | Player profile and historical team registrations |
+| GET | `/teams/{team_id}/squad` | Team registrations active on a requested date |
 | GET | `/fixtures` | Filtered fixtures with bounded pagination |
 | GET | `/competitions/{competition_id}/standings?season_id=...` | 3-1-0 league table |
 | GET | `/teams/{team_id}/form?competition_id=...&season_id=...` | Recent completed results |
 | GET | `/teams/head-to-head?... ` | Completed meetings between two teams |
 
 Standings use points, goal difference, goals scored, then team name as tie-break
-order. Only finished fixtures with both scores are counted. Fixture timestamps
-must be timezone-aware at ingestion boundaries.
+order. Only finished fixtures with both scores are counted. Squad membership is evaluated as of the requested date (or the current server
+date when omitted); player profiles retain historical team registrations.
+Fixture timestamps must be timezone-aware at ingestion boundaries.
 
 ## Authentication
 
@@ -161,6 +167,7 @@ uv run ruff format --check .
 uv run ruff check .
 uv run mypy src
 uv run pytest
+make audit
 ```
 
 PostgreSQL integration tests run when `TEST_DATABASE_URL` is configured. The

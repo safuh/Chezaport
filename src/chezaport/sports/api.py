@@ -1,16 +1,24 @@
 """Read-only, versioned sports API for catalog, fixtures, and analytics."""
 
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from chezaport.sports.models import Competition, Fixture, Season, Sport, Team
+from chezaport.sports.models import (
+    Competition,
+    Fixture,
+    Player,
+    Season,
+    Sport,
+    Team,
+    TeamMembership,
+)
 from chezaport.sports.services.analytics import (
     calculate_head_to_head,
     calculate_standings,
@@ -70,6 +78,85 @@ class FixturePage(BaseModel):
     offset: int
 
 
+class TeamRead(BaseModel):
+    id: str
+    sport_id: str
+    country_id: str | None
+    venue_id: str | None
+    name: str
+    slug: str
+    short_name: str | None
+    founded_year: int | None
+    is_active: bool
+
+
+class TeamPage(BaseModel):
+    items: list[TeamRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class SeasonRead(BaseModel):
+    id: str
+    competition_id: str
+    name: str
+    start_date: date | None
+    end_date: date | None
+    is_current: bool
+
+
+class SeasonPage(BaseModel):
+    items: list[SeasonRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class PlayerRead(BaseModel):
+    id: str
+    country_id: str | None
+    first_name: str | None
+    last_name: str | None
+    display_name: str
+    date_of_birth: date | None
+    position: str | None
+
+
+class PlayerPage(BaseModel):
+    items: list[PlayerRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class PlayerMembershipRead(BaseModel):
+    membership_id: str
+    team_id: str
+    team_name: str
+    joined_on: date | None
+    left_on: date | None
+    shirt_number: int | None
+
+
+class PlayerDetailRead(PlayerRead):
+    memberships: list[PlayerMembershipRead]
+
+
+class SquadMemberRead(PlayerRead):
+    membership_id: str
+    joined_on: date | None
+    left_on: date | None
+    shirt_number: int | None
+
+
+class SquadRead(BaseModel):
+    team_id: str
+    as_of: date
+    items: list[SquadMemberRead]
+    total: int
+
+
 @router.get("/sports", response_model=list[SportRead])
 async def list_sports(session: SessionDep) -> list[Sport]:
     """List active sports in the canonical catalogue."""
@@ -93,6 +180,175 @@ async def list_competitions(
         statement = statement.where(Competition.is_active.is_(True))
     result = await session.scalars(statement)
     return list(result.all())
+
+
+@router.get("/teams", response_model=TeamPage)
+async def list_teams(
+    session: SessionDep,
+    sport_id: str | None = None,
+    country_id: str | None = None,
+    competition_id: str | None = None,
+    season_id: str | None = None,
+    active_only: bool = True,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> TeamPage:
+    """List canonical teams with optional competition/season membership filters."""
+    statement = select(Team)
+    if sport_id is not None:
+        statement = statement.where(Team.sport_id == sport_id)
+    if country_id is not None:
+        statement = statement.where(Team.country_id == country_id)
+    if active_only:
+        statement = statement.where(Team.is_active.is_(True))
+    if competition_id is not None or season_id is not None:
+        home_ids = select(Fixture.home_team_id)
+        away_ids = select(Fixture.away_team_id)
+        if competition_id is not None:
+            home_ids = home_ids.where(Fixture.competition_id == competition_id)
+            away_ids = away_ids.where(Fixture.competition_id == competition_id)
+        if season_id is not None:
+            home_ids = home_ids.where(Fixture.season_id == season_id)
+            away_ids = away_ids.where(Fixture.season_id == season_id)
+        statement = statement.where(Team.id.in_(home_ids.union(away_ids)))
+    total = int(await session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+    rows = await session.scalars(
+        statement.order_by(Team.name.asc(), Team.id.asc()).limit(limit).offset(offset)
+    )
+    items = [TeamRead.model_validate(row, from_attributes=True) for row in rows.all()]
+    return TeamPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/seasons", response_model=SeasonPage)
+async def list_seasons(
+    session: SessionDep,
+    competition_id: str | None = None,
+    current_only: bool = False,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> SeasonPage:
+    """List competition seasons, optionally restricted to current editions."""
+    statement = select(Season)
+    if competition_id is not None:
+        statement = statement.where(Season.competition_id == competition_id)
+    if current_only:
+        statement = statement.where(Season.is_current.is_(True))
+    total = int(await session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+    rows = await session.scalars(
+        statement.order_by(Season.start_date.desc(), Season.name.desc(), Season.id.asc())
+        .limit(limit)
+        .offset(offset)
+    )
+    items = [SeasonRead.model_validate(row, from_attributes=True) for row in rows.all()]
+    return SeasonPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/players", response_model=PlayerPage)
+async def list_players(
+    session: SessionDep,
+    country_id: str | None = None,
+    position: str | None = Query(default=None, max_length=40),
+    search: str | None = Query(default=None, max_length=100),
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> PlayerPage:
+    """Search canonical player profiles by nationality, position, or name."""
+    statement = select(Player)
+    if country_id is not None:
+        statement = statement.where(Player.country_id == country_id)
+    if position is not None and position.strip():
+        statement = statement.where(func.lower(Player.position) == position.strip().lower())
+    if search is not None and search.strip():
+        pattern = f"%{search.strip()}%"
+        statement = statement.where(
+            or_(
+                Player.display_name.ilike(pattern),
+                Player.first_name.ilike(pattern),
+                Player.last_name.ilike(pattern),
+            )
+        )
+    total = int(await session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+    rows = await session.scalars(
+        statement.order_by(Player.display_name.asc(), Player.id.asc()).limit(limit).offset(offset)
+    )
+    items = [PlayerRead.model_validate(row, from_attributes=True) for row in rows.all()]
+    return PlayerPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/players/{player_id}", response_model=PlayerDetailRead)
+async def get_player(player_id: str, session: SessionDep) -> PlayerDetailRead:
+    """Return a player profile and its full team-registration history."""
+    player = await session.get(Player, player_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail="Player not found")
+    rows = await session.execute(
+        select(TeamMembership, Team.name)
+        .join(Team, TeamMembership.team_id == Team.id)
+        .where(TeamMembership.player_id == player_id)
+        .order_by(TeamMembership.joined_on.desc(), Team.name.asc())
+    )
+    memberships = [
+        PlayerMembershipRead(
+            membership_id=membership.id,
+            team_id=membership.team_id,
+            team_name=team_name,
+            joined_on=membership.joined_on,
+            left_on=membership.left_on,
+            shirt_number=membership.shirt_number,
+        )
+        for membership, team_name in rows.all()
+    ]
+    return PlayerDetailRead(
+        id=player.id,
+        country_id=player.country_id,
+        first_name=player.first_name,
+        last_name=player.last_name,
+        display_name=player.display_name,
+        date_of_birth=player.date_of_birth,
+        position=player.position,
+        memberships=memberships,
+    )
+
+
+@router.get("/teams/{team_id}/squad", response_model=SquadRead)
+async def team_squad(
+    team_id: str,
+    session: SessionDep,
+    as_of: date | None = None,
+) -> SquadRead:
+    """Return registrations active on a date, preserving historical transfers."""
+    team = await session.get(Team, team_id)
+    if team is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+    effective_date = as_of or date.today()
+    statement = (
+        select(Player, TeamMembership)
+        .join(TeamMembership, TeamMembership.player_id == Player.id)
+        .where(
+            TeamMembership.team_id == team_id,
+            or_(TeamMembership.joined_on.is_(None), TeamMembership.joined_on <= effective_date),
+            or_(TeamMembership.left_on.is_(None), TeamMembership.left_on >= effective_date),
+        )
+        .order_by(TeamMembership.shirt_number.asc().nulls_last(), Player.display_name.asc())
+    )
+    rows = (await session.execute(statement)).all()
+    items = [
+        SquadMemberRead(
+            id=player.id,
+            country_id=player.country_id,
+            first_name=player.first_name,
+            last_name=player.last_name,
+            display_name=player.display_name,
+            date_of_birth=player.date_of_birth,
+            position=player.position,
+            membership_id=membership.id,
+            joined_on=membership.joined_on,
+            left_on=membership.left_on,
+            shirt_number=membership.shirt_number,
+        )
+        for player, membership in rows
+    ]
+    return SquadRead(team_id=team_id, as_of=effective_date, items=items, total=len(items))
 
 
 @router.get("/fixtures", response_model=FixturePage)

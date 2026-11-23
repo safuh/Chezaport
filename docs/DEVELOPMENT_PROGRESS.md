@@ -20,7 +20,7 @@ football-first public API. It is not a frontend or mobile application.
 
 - Repository: [safuh/Chezaport](https://github.com/safuh/Chezaport)
 - Working branch: `feature/sports-platform-foundation`
-- Latest pushed baseline: `f3dbfbf` (football-data.org adapter and manual sync)
+- Latest pushed baseline: `dabac9c` (dependency audit, CodeQL, and deployment hardening)
 - Local working directory: `/home/harry/AceCode/FastApiBackbone-CLI/Chezaport`
 - Runtime: Python 3.11 virtual environment, uv, SQLite local default, PostgreSQL
   support, Podman-compatible Docker CLI.
@@ -40,6 +40,10 @@ football-first public API. It is not a frontend or mobile application.
 
 ## Work completed in this development increment
 
+- Added read APIs for teams, competition seasons, player search and profiles,
+  and date-aware team squads with historical registration details.
+- Added API contract coverage for player registration history and as-of squad
+  membership, including exclusion before a registration's start date.
 - Added deterministic football standings from completed fixtures using 3-1-0
   scoring and documented tie-break ordering.
 - Added recent team form and head-to-head aggregation services.
@@ -84,18 +88,24 @@ football-first public API. It is not a frontend or mobile application.
 
 ## Verification completed
 
-- `make check`: 127 passed, 2 skipped, 2 upstream dependency deprecation
-  warnings after the security and dependency updates. Formatting, Ruff lint,
-  and mypy passed.
+- `make check` before the latest catalogue API increment: 127 passed,
+  2 skipped, and 2 upstream dependency deprecation warnings. Formatting,
+  Ruff lint, and mypy passed.
+- The expanded sports API contract test passed after adding team, season, player,
+  player-history, and date-aware squad endpoints; rerun the full suite after
+  this increment.
 - `make audit`: passed; OSV reported no known vulnerabilities in the locked
   runtime dependency set after upgrading certifi, Mako, and PyJWT.
+- GitHub Actions CI and the new CodeQL security-extended workflow both passed
+  for commit `dabac9c`.
 - Staging and production Compose configurations parse successfully with a
   placeholder PostgreSQL URL.
 - PostgreSQL-specific tests against a temporary local PostgreSQL 17 container:
   2 passed. The temporary container was removed after the run.
 - `make docker-test`: passed. The image built, PostgreSQL became healthy, API
   liveness/readiness returned `ok/ready`, all five Alembic revisions applied,
-  and the test stack/volume were removed.
+  and the test stack/volume were removed. The smoke port is configurable and
+  defaults to loopback port 18080 to avoid conflicts with local port 8000.
 - `uv build`: source distribution and wheel built successfully with the
   provider adapter and manual sync command included.
 - `twine check dist/*`: both distribution artifacts passed.
@@ -117,8 +127,8 @@ repository or chat.
 
 ## Remaining release gates
 
-1. Run the updated GitHub Actions and CodeQL workflows on the latest pushed
-   commit; resolve any matrix or security findings.
+1. Run the updated GitHub Actions and CodeQL workflows on the next API
+   increment; resolve any matrix or security findings.
 2. Confirm GitHub secret scanning and push protection are enabled for the repo.
 3. Configure the provider token locally and verify the EPL feed within the
    documented quota after confirming public-use terms.
