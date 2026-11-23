@@ -80,6 +80,14 @@ class FixturePage(BaseModel):
     offset: int
 
 
+class FixtureDetailRead(FixtureRead):
+    competition_name: str
+    season_name: str
+    venue_id: str | None
+    venue_name: str | None
+    venue_city: str | None
+
+
 class CountryRead(BaseModel):
     id: str
     code: str | None
@@ -487,6 +495,64 @@ async def list_fixtures(
         for fixture, home_name, away_name in rows
     ]
     return FixturePage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/fixtures/{fixture_id}", response_model=FixtureDetailRead)
+async def get_fixture(fixture_id: str, session: SessionDep) -> FixtureDetailRead:
+    """Return a fixture with competition, season, team, and venue context."""
+    home = aliased(Team)
+    away = aliased(Team)
+    row = (
+        await session.execute(
+            select(
+                Fixture,
+                home.name,
+                away.name,
+                Competition.name,
+                Season.name,
+                Venue.id,
+                Venue.name,
+                Venue.city,
+            )
+            .join(home, Fixture.home_team_id == home.id)
+            .join(away, Fixture.away_team_id == away.id)
+            .join(Competition, Fixture.competition_id == Competition.id)
+            .join(Season, Fixture.season_id == Season.id)
+            .outerjoin(Venue, Fixture.venue_id == Venue.id)
+            .where(Fixture.id == fixture_id)
+        )
+    ).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    (
+        fixture,
+        home_name,
+        away_name,
+        competition_name,
+        season_name,
+        venue_id,
+        venue_name,
+        venue_city,
+    ) = row
+    return FixtureDetailRead(
+        id=fixture.id,
+        competition_id=fixture.competition_id,
+        season_id=fixture.season_id,
+        home_team_id=fixture.home_team_id,
+        home_team_name=home_name,
+        away_team_id=fixture.away_team_id,
+        away_team_name=away_name,
+        kickoff_at=fixture.kickoff_at,
+        status=fixture.status,
+        home_score=fixture.home_score,
+        away_score=fixture.away_score,
+        round_name=fixture.round_name,
+        competition_name=competition_name,
+        season_name=season_name,
+        venue_id=venue_id,
+        venue_name=venue_name,
+        venue_city=venue_city,
+    )
 
 
 async def _validate_competition_season(

@@ -20,7 +20,7 @@ football-first public API. It is not a frontend or mobile application.
 
 - Repository: [safuh/Chezaport](https://github.com/safuh/Chezaport)
 - Working branch: `feature/sports-platform-foundation`
-- Latest pushed baseline: `212ed72` (team, season, and player catalogue APIs)
+- Latest pushed baseline before this increment: `c4ed6f7` (country and venue catalogue APIs)
 - Local working directory: `/home/harry/AceCode/FastApiBackbone-CLI/Chezaport`
 - Runtime: Python 3.11 virtual environment, uv, SQLite local default, PostgreSQL
   support, Podman-compatible Docker CLI.
@@ -45,6 +45,8 @@ football-first public API. It is not a frontend or mobile application.
   details. Catalogue queries support bounded pagination and filters.
 - Added API contract coverage for player registration history and as-of squad
   membership, including exclusion before a registration's start date.
+- Added a fixture detail endpoint that joins canonical competition, season, team,
+  and optional venue context; missing fixture IDs return a stable 404 response.
 - Added deterministic football standings from completed fixtures using 3-1-0
   scoring and documented tie-break ordering.
 - Added recent team form and head-to-head aggregation services.
@@ -95,6 +97,8 @@ football-first public API. It is not a frontend or mobile application.
 - `make check`: 127 passed, 2 skipped, and 2 upstream dependency deprecation
   warnings after the country/venue API increment. Formatting, Ruff lint, and
   mypy passed.
+- `make check` after the fixture detail endpoint: 127 passed, 2 skipped, and
+  2 upstream dependency deprecation warnings; formatting, Ruff lint, and mypy passed.
 - `make audit`: passed; OSV reported no known vulnerabilities in the locked
   runtime dependency set after upgrading certifi, Mako, and PyJWT.
 - GitHub Actions CI and the CodeQL security-extended workflow both passed
