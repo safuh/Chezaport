@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 from .tokens import TokenError, TokenService
@@ -16,6 +16,13 @@ class RefreshTokenRecord:
     subject: str
     expires_in: timedelta
     revoked: bool = False
+
+
+class RoleResolver(Protocol):
+    """Resolve the current persisted application role for an identity."""
+
+    async def __call__(self, subject: str) -> str | None:
+        """Return the current role or ``None`` for a deleted identity."""
 
 
 class RefreshTokenStore(Protocol):
@@ -49,6 +56,7 @@ class RefreshTokenService:
         refresh_token_store: RefreshTokenStore,
         access_token_lifetime: timedelta,
         refresh_token_lifetime: timedelta,
+        role_resolver: RoleResolver | None = None,
     ) -> None:
         if access_token_lifetime <= timedelta(0):
             raise ValueError("access_token_lifetime must be positive")
@@ -58,8 +66,11 @@ class RefreshTokenService:
         self.refresh_token_store = refresh_token_store
         self.access_token_lifetime = access_token_lifetime
         self.refresh_token_lifetime = refresh_token_lifetime
+        self.role_resolver = role_resolver
 
-    async def issue(self, subject: str, access_token: str | None = None) -> RefreshResult:
+    async def issue(
+        self, subject: str, access_token: str | None = None, *, claims: dict[str, Any] | None = None
+    ) -> RefreshResult:
         """Issue a persisted refresh token and, when needed, an access token."""
         token_id = uuid4()
         await self.refresh_token_store.create(
@@ -68,7 +79,9 @@ class RefreshTokenService:
         return RefreshResult(
             subject=subject,
             access_token=access_token
-            or self.token_service.create(subject, self.access_token_lifetime, token_type="access"),
+            or self.token_service.create(
+                subject, self.access_token_lifetime, token_type="access", claims=claims
+            ),
             refresh_token=self.token_service.create(
                 subject,
                 self.refresh_token_lifetime,
@@ -89,7 +102,13 @@ class RefreshTokenService:
         record = await self.refresh_token_store.consume(token_id, subject)
         if record is None or record.revoked:
             raise TokenError("Invalid refresh token")
-        return await self.issue(record.subject)
+        claims: dict[str, Any] = {}
+        if self.role_resolver is not None:
+            role = await self.role_resolver(record.subject)
+            if role not in {"viewer", "operator", "admin"}:
+                raise TokenError("Identity is unavailable or has an invalid role")
+            claims["role"] = role
+        return await self.issue(record.subject, claims=claims)
 
     async def revoke(self, refresh_token: str) -> bool:
         """Revoke a refresh token without exposing whether it was previously valid."""

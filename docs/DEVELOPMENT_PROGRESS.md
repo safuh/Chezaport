@@ -20,7 +20,7 @@ football-first public API. It is not a frontend or mobile application.
 
 - Repository: [safuh/Chezaport](https://github.com/safuh/Chezaport)
 - Working branch: `feature/sports-platform-foundation`
-- Latest pushed commit: `b9afbbd` (competition-season statistics)
+- Latest pushed commit before the current uncommitted identity-role increment: `9733f2e` (operator sync monitoring and demo dataset)
 - Local working directory: `/home/harry/AceCode/FastApiBackbone-CLI/Chezaport`
 - Runtime: Python 3.11 virtual environment, uv, SQLite local default, PostgreSQL
   support, Podman-compatible Docker CLI.
@@ -175,6 +175,17 @@ runtime configuration outside Git.
 ## Operator monitoring and reproducible demo data
 
 - Added `GET /api/v1/ops/sync-runs` with provider/resource/status filters and pagination, plus `GET /api/v1/ops/sync-freshness` with a caller-configurable stale threshold.
-- Both endpoints fail closed and delegate bearer-token validation and operator-role authorization to the host identity composition layer through `app.state.sync_operator_token_validator`. This repository's generic auth foundation does not yet define application roles, so the endpoints return 503 until the consuming app wires a real validator. No token-presence-only shortcut is accepted.
+- Both endpoints fail closed and use a database-backed JWT validator supplied through the `create_app(..., sync_operator_token_validator=...)` composition argument. The validator checks signature, expiry, access-token type, subject existence, and current persisted role; `operator` and `admin` are allowed, while `viewer` is denied. Role demotion takes effect immediately without waiting for token expiry.
 - Added `uv run python -m chezaport.sports.demo`: an idempotent, credential-free synthetic league with four fictional teams and six completed fixtures. Its display name explicitly labels the data fictional; the command never overwrites or deletes records.
 - Added tests for operator authorization, sync history/freshness responses, and demo dataset idempotency.
+
+
+## Identity roles and operator authorization increment (local, not yet pushed)
+
+- Added migration `0007_identity_roles` with a constrained `users.role` field (`viewer`, `operator`, `admin`); existing users and new registrations default to `viewer`.
+- Authentication access JWTs now carry the persisted role claim. Refresh rotation reloads the current role from the identity repository before minting the replacement access token, avoiding stale privilege claims.
+- Added `create_sync_operator_token_validator`, which validates JWT signature, expiry, token type and subject, then checks the current database role. It grants only `operator` and `admin`; malformed tokens, refresh tokens, unknown users, and viewers are denied. Added a trusted-shell `python -m chezaport.identity.manage_roles` command to promote/demote existing users without a public privilege-escalation endpoint.
+- Added explicit app-factory injection for the validator and documented host composition. No bootstrap administrator, default password, or committed secret is introduced.
+- Migration uses Alembic batch operations so SQLite and PostgreSQL can both apply the role constraint.
+- Verification: Ruff lint/format, mypy, and pytest passed: 134 passed, 2 skipped, 2 upstream deprecation warnings. The initial migration test caught SQLite's lack of direct `ALTER CHECK CONSTRAINT`; the migration was corrected to use batch mode and the full suite passed afterwards.
+- This increment is local and has not yet been committed or pushed.

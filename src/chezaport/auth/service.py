@@ -19,6 +19,7 @@ class Credentials:
 
     subject: str
     password_hash: str
+    role: str = "viewer"
 
 
 class CredentialStore(Protocol):
@@ -79,6 +80,7 @@ class AuthenticationService:
                 credentials.subject,
                 self.access_token_lifetime,
                 token_type="access",
+                claims={"role": credentials.role},
             ),
             password_needs_rehash=self.password_hasher.needs_rehash(credentials.password_hash),
         )

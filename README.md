@@ -17,7 +17,7 @@ SQLite (local) · PostgreSQL (staging/production) · Docker Compose.
 - Versioned read API for sports, competitions, fixtures and match detail, standings, team form,
   and head-to-head results, plus competition and team-season statistics and cross-season comparisons.
 - Optional Argon2/JWT identity composition with registration, login, refresh
-  rotation, logout, and refresh-token revocation.
+  rotation, logout, refresh-token revocation, and least-privilege viewer/operator/admin roles.
 - Health/readiness endpoints, correlation IDs, structured logging, migrations,
   and container deployment assets.
 
@@ -79,8 +79,38 @@ Fixture timestamps must be timezone-aware at ingestion boundaries.
 
 Authentication is optional and must be explicitly composed by the consuming
 application. The API returns 503 for auth endpoints until an
-`AuthenticationApplication` factory is supplied. Do not treat the presence of
-the auth module as an enabled user-management system. See
+`AuthenticationApplication` factory is supplied. New registrations receive the
+least-privileged `viewer` role. `operator` and `admin` can access sync operations;
+role checks consult the current database value on every request, so demotion is
+immediate even while an access JWT remains valid.
+
+The host must explicitly supply the database-backed operator validator when
+creating the app; no secret or privileged default account is generated:
+
+```python
+from chezaport.app import create_app
+from chezaport.identity import (
+    create_sqlalchemy_auth_application,
+    create_sync_operator_token_validator,
+)
+
+# session_factory and JWT_SECRET come from the host's protected configuration.
+app = create_app(
+    auth_application_factory=lambda session: create_sqlalchemy_auth_application(
+        session,
+        secret_key=JWT_SECRET,
+        access_token_lifetime=ACCESS_TOKEN_LIFETIME,
+        refresh_token_lifetime=REFRESH_TOKEN_LIFETIME,
+    ),
+    sync_operator_token_validator=create_sync_operator_token_validator(
+        session_factory, secret_key=JWT_SECRET
+    ),
+)
+```
+
+The validator verifies signature, expiry, and access-token type, then reloads the
+subject's persisted role. Unknown, deleted, expired, refresh, or malformed tokens
+are denied. Newly registered accounts are never operators by default. See
 [security guidance](docs/SECURITY.md).
 
 ## Data providers
@@ -205,3 +235,6 @@ HTTP 503 when this identity integration is not configured, 401 when no bearer
 token is supplied, and 403 when the token is not authorized. Never implement
 this callback as a token-presence check; it must verify signature, expiry,
 subject, and operator permissions using the host identity provider.
+
+
+Role provisioning is a trusted-shell operation: `uv run python -m chezaport.identity.manage_roles --identifier user@example.com --role operator` (or `admin`). It requires direct access to the configured database and is not exposed as public self-service registration.

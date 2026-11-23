@@ -18,12 +18,16 @@ class UserCredentialRepository:
     async def get_by_identifier(self, identifier: str) -> Credentials | None:
         """Return authentication credentials for an identifier, if present."""
         result = await self.session.execute(
-            select(User.id, User.password_hash).where(User.identifier == identifier)
+            select(User.id, User.password_hash, User.role).where(User.identifier == identifier)
         )
         row = result.one_or_none()
         if row is None:
             return None
-        return Credentials(subject=row.id, password_hash=row.password_hash)
+        return Credentials(subject=row.id, password_hash=row.password_hash, role=row.role)
+
+    async def get_role(self, subject: str) -> str | None:
+        """Return the current persisted role for a subject."""
+        return await self.session.scalar(select(User.role).where(User.id == subject))
 
     async def create(self, identifier: str, password_hash: str) -> str:
         """Persist a new user and return its generated subject identifier."""
