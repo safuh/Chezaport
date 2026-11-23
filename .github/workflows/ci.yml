@@ -69,6 +69,11 @@ jobs:
       - name: Type check
         run: uv run mypy src
 
+      - name: Audit runtime dependencies
+        run: |
+          uv export --locked --no-dev --no-emit-project --format requirements-txt > /tmp/chezaport-requirements.txt
+          uv run --extra dev pip-audit --strict --vulnerability-service osv --requirement /tmp/chezaport-requirements.txt
+
       - name: Test (SQLite and PostgreSQL)
         run: uv run pytest
 

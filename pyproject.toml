@@ -33,7 +33,7 @@ dependencies = [
     "pydantic>=2.8,<3.0",
     "pydantic-settings>=2.4,<3.0",
     "structlog>=24.4,<26.0",
-    "PyJWT>=2.9,<3.0",
+    "PyJWT>=2.15,<3.0",
     "pwdlib[argon2]>=0.2,<1.0",
 ]
 
@@ -45,6 +45,7 @@ dev = [
     "mypy>=1.11,<2.0",
     "build>=1.2,<2.0",
     "twine>=5.1,<7.0",
+    "pip-audit>=2.9,<3.0",
 ]
 
 [project.urls]

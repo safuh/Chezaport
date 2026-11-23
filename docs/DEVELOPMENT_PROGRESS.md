@@ -20,7 +20,7 @@ football-first public API. It is not a frontend or mobile application.
 
 - Repository: [safuh/Chezaport](https://github.com/safuh/Chezaport)
 - Working branch: `feature/sports-platform-foundation`
-- Latest pushed baseline: `e457051` (sports analytics and deployment hardening)
+- Latest pushed baseline: `f3dbfbf` (football-data.org adapter and manual sync)
 - Local working directory: `/home/harry/AceCode/FastApiBackbone-CLI/Chezaport`
 - Runtime: Python 3.11 virtual environment, uv, SQLite local default, PostgreSQL
   support, Podman-compatible Docker CLI.
@@ -35,8 +35,8 @@ football-first public API. It is not a frontend or mobile application.
 | M3 | Optional identity/JWT lifecycle | Implemented and tested |
 | M4 | Sports domain, ingestion, provider adapter, and manual sync orchestration | Implemented; live credentials and scheduled sync pending |
 | M5 | Read API and deterministic analytics | Implemented and contract-tested |
-| M6 | Release verification | Local gates passed; CI/security gates pending |
-| M7 | Staging/production operations | Compose assets and smoke test passed; hosted infrastructure pending |
+| M6 | Release verification | Local tests, package build, and dependency audit passed; latest GitHub CI/CodeQL run pending |
+| M7 | Staging/production operations | Compose assets and container smoke passed; hosted infrastructure pending |
 
 ## Work completed in this development increment
 
@@ -68,14 +68,29 @@ football-first public API. It is not a frontend or mobile application.
   record-level ingestion failures and keeps credentials out of command output.
 - Added country metadata upsert from provider area names/codes so competition
   ingestion does not depend on a separately pre-seeded country catalogue.
-  CI remains independent of provider credentials and live network calls.
+- Added a dependency audit gate using the locked runtime requirements and OSV,
+  plus a CodeQL security-extended Python workflow and weekly Dependabot updates
+  for Python packages and GitHub Actions.
+- The audit identified vulnerable versions of certifi, Mako, and PyJWT; upgraded
+  them to certifi 2026.11.20, Mako 1.4.3, and PyJWT 2.15.1.
+- Passed the subsequent runtime dependency audit with no known vulnerabilities.
+- Exposed optional provider credentials and competition codes in staging and
+  production Compose environments without enabling a provider when no token is
+  configured.
+- Changed the local Docker smoke port to a configurable loopback binding
+  (default `127.0.0.1:18080`) so it does not conflict with a developer API on
+  port 8000.
+- CI remains independent of provider credentials and live sports-data calls.
 
 ## Verification completed
 
-- `make check`: 127 passed, 2 skipped, 2 dependency deprecation warnings.
-  Formatting, Ruff lint, and mypy all passed after the provider adapter and
-  manual sync command were added.
-  Formatting, Ruff lint, and mypy all passed.
+- `make check`: 127 passed, 2 skipped, 2 upstream dependency deprecation
+  warnings after the security and dependency updates. Formatting, Ruff lint,
+  and mypy passed.
+- `make audit`: passed; OSV reported no known vulnerabilities in the locked
+  runtime dependency set after upgrading certifi, Mako, and PyJWT.
+- Staging and production Compose configurations parse successfully with a
+  placeholder PostgreSQL URL.
 - PostgreSQL-specific tests against a temporary local PostgreSQL 17 container:
   2 passed. The temporary container was removed after the run.
 - `make docker-test`: passed. The image built, PostgreSQL became healthy, API
@@ -86,9 +101,9 @@ football-first public API. It is not a frontend or mobile application.
 - `twine check dist/*`: both distribution artifacts passed.
 - Staging and production Compose configurations parsed successfully with
   PostgreSQL URLs; all deployment shell scripts passed `bash -n`.
-- The package build emits setuptools deprecation warnings for the current
-  license metadata/classifier. They do not fail the build, but should be cleaned
-  up before a future packaging-toolchain upgrade.
+- Docker smoke uses Podman on the local development host; it built the updated
+  image, verified liveness/readiness, applied all five Alembic revisions, and
+  removed the temporary containers, network, and volume.
 
 ## Provider decision gate
 
@@ -102,9 +117,9 @@ repository or chat.
 
 ## Remaining release gates
 
-1. Run the updated GitHub Actions workflow on the pushed branch and resolve any
-   matrix-specific failures.
-2. Complete dependency audit and secret scanning.
+1. Run the updated GitHub Actions and CodeQL workflows on the latest pushed
+   commit; resolve any matrix or security findings.
+2. Confirm GitHub secret scanning and push protection are enabled for the repo.
 3. Configure the provider token locally and verify the EPL feed within the
    documented quota after confirming public-use terms.
 4. Add a scheduler only after freshness, quota, and provider terms are approved;

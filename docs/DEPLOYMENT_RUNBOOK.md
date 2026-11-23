@@ -19,7 +19,7 @@ JSON logging. They must use different database instances and credentials.
 1. Review the diff and migration scripts.
 2. Run `uv sync --locked --extra dev`.
 3. Run `uv run ruff format --check .`, `uv run ruff check .`,
-   `uv run mypy src`, and `uv run pytest`.
+   `uv run mypy src`, `uv run pytest`, and `make audit`.
 4. Run the PostgreSQL integration suite against a disposable PostgreSQL database
    by setting `TEST_DATABASE_URL`.
 5. Run `make docker-test` on a working container host.
@@ -34,6 +34,10 @@ Use a dedicated staging PostgreSQL database and deployment secrets. Set:
 - `APP_PORT`: host port, default 8001.
 - `CORS_ORIGINS`: JSON array of staging frontend origins.
 - `APP_VERSION`: immutable release identifier.
+- `FOOTBALL_DATA_API_TOKEN` (optional): provider token stored only in the
+  deployment secret manager; omit to keep external ingestion disabled.
+- `FOOTBALL_DATA_COMPETITION_CODES` (optional): JSON list of explicitly
+  approved competition codes, defaulting to `["PL"]`.
 
 Run `make docker-staging`. The script validates Compose configuration, builds
 the image, applies migrations once, starts the API, and waits for database-backed
@@ -74,7 +78,8 @@ schema only in a later release.
 - Centralized logs, metrics, uptime alerts, database monitoring, and incident
   ownership.
 - Provider data licensing, attribution, freshness disclosures, and usage limits
-  confirmed for every enabled competition.
+  confirmed for every enabled competition. Provider credentials must be stored
+  in a secret manager and never committed to `.env`, deployment manifests, or logs.
 
 ## Current boundaries
 
