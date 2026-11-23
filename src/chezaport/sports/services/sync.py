@@ -6,13 +6,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TypeVar
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from chezaport.sports.integrations.capabilities import ProviderResource
 from chezaport.sports.integrations.errors import ProviderConfigurationError
 from chezaport.sports.integrations.protocols import SportsDataProvider
 from chezaport.sports.integrations.registry import SportsProviderRegistry
 from chezaport.sports.integrations.retry import retry_provider_call
+from chezaport.sports.models import SportsSyncRun
 from chezaport.sports.services.ingestion import IngestionReport, SportsIngestionService
 
 RecordT = TypeVar("RecordT")
@@ -75,6 +76,7 @@ class SportsSyncService:
         *,
         retry_max_attempts: int = 3,
         retry_sleep: Sleep = asyncio.sleep,
+        audit_session_factory: async_sessionmaker[AsyncSession] | None = None,
     ) -> None:
         if retry_max_attempts < 1:
             raise ValueError("retry_max_attempts must be at least 1")
@@ -82,6 +84,7 @@ class SportsSyncService:
         self._registry = registry
         self._retry_max_attempts = retry_max_attempts
         self._retry_sleep = retry_sleep
+        self._audit_session_factory = audit_session_factory
 
     async def sync_competitions(
         self,
@@ -180,22 +183,63 @@ class SportsSyncService:
         importer: ImportRecords[RecordT],
     ) -> SportsSyncReport:
         started_at = datetime.now(UTC)
-        records = tuple(
-            await retry_provider_call(
-                fetch,
-                max_attempts=self._retry_max_attempts,
-                sleep=self._retry_sleep,
+        normalized_provider = provider.provider_name.strip().lower()
+        normalized_code = competition_code.strip().upper() if competition_code else None
+        run_id: str | None = None
+        if self._audit_session_factory is not None:
+            run = SportsSyncRun(
+                provider=normalized_provider,
+                resource=resource.value,
+                competition_code=normalized_code,
+                status="running",
+                started_at=started_at,
             )
-        )
-        ingestion = await importer(records)
+            async with self._audit_session_factory() as audit_session:
+                audit_session.add(run)
+                await audit_session.commit()
+                run_id = run.id
+        try:
+            records = tuple(
+                await retry_provider_call(
+                    fetch,
+                    max_attempts=self._retry_max_attempts,
+                    sleep=self._retry_sleep,
+                )
+            )
+            ingestion = await importer(records)
+        except Exception as exc:
+            if run_id is not None and self._audit_session_factory is not None:
+                async with self._audit_session_factory() as audit_session:
+                    failed_run = await audit_session.get(SportsSyncRun, run_id)
+                    if failed_run is not None:
+                        failed_run.status = "failed"
+                        failed_run.completed_at = datetime.now(UTC)
+                        # Exception messages can contain URLs or request details; store type only.
+                        failed_run.error_summary = f"{type(exc).__name__}: synchronization failed"
+                        await audit_session.commit()
+            raise
+        completed_at = datetime.now(UTC)
+        if run_id is not None and self._audit_session_factory is not None:
+            async with self._audit_session_factory() as audit_session:
+                completed_run = await audit_session.get(SportsSyncRun, run_id)
+                if completed_run is not None:
+                    completed_run.status = "partial" if ingestion.failed else "succeeded"
+                    completed_run.completed_at = completed_at
+                    completed_run.records_fetched = len(records)
+                    completed_run.records_seen = ingestion.records_seen
+                    completed_run.created = ingestion.created
+                    completed_run.updated = ingestion.updated
+                    completed_run.unchanged = ingestion.unchanged
+                    completed_run.failed = ingestion.failed
+                    if ingestion.failed:
+                        completed_run.error_summary = "One or more records failed ingestion"
+                    await audit_session.commit()
         return SportsSyncReport(
-            provider=provider.provider_name.strip().lower(),
+            provider=normalized_provider,
             resource=resource,
-            competition_code=(
-                competition_code.strip().upper() if competition_code is not None else None
-            ),
+            competition_code=normalized_code,
             started_at=started_at,
-            completed_at=datetime.now(UTC),
+            completed_at=completed_at,
             records_fetched=len(records),
             ingestion=ingestion,
         )

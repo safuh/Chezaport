@@ -59,7 +59,7 @@ async def synchronize_competitions(
     reports: list[SportsSyncReport] = []
     async with session_scope(session_factory) as session:
         await seed_default_sports(session)
-        service = SportsSyncService(session, registry)
+        service = SportsSyncService(session, registry, audit_session_factory=session_factory)
 
         catalogue = await service.sync_competitions(_PROVIDER, "football")
         _require_success(catalogue)

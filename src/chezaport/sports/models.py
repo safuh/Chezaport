@@ -269,3 +269,41 @@ class ExternalIDMapping(Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+
+class SportsSyncRun(Base):
+    """Durable, provider-neutral audit record for one synchronization attempt."""
+
+    __tablename__ = "sports_sync_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'partial', 'failed')",
+            name="ck_sports_sync_runs_status_valid",
+        ),
+        CheckConstraint(
+            "records_fetched >= 0 AND records_seen >= 0 AND created >= 0 "
+            "AND updated >= 0 AND unchanged >= 0 AND failed >= 0",
+            name="ck_sports_sync_runs_counts_nonnegative",
+        ),
+        CheckConstraint(
+            "completed_at IS NULL OR completed_at >= started_at",
+            name="ck_sports_sync_runs_time_order",
+        ),
+        Index("ix_sports_sync_runs_started_at", "started_at"),
+        Index("ix_sports_sync_runs_provider_resource", "provider", "resource", "started_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_id)
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    resource: Mapped[str] = mapped_column(String(32), nullable=False)
+    competition_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    records_fetched: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    records_seen: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    unchanged: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)

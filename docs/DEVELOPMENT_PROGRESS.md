@@ -163,3 +163,10 @@ repository or chat.
 A hosted staging/production deployment cannot be completed from this repository
 alone: the owner must select/provision the infrastructure and provide protected
 runtime configuration outside Git.
+
+## Synchronization observability foundation
+
+- Added `sports_sync_runs` with provider/resource/competition scope, lifecycle status, UTC timestamps, fetched/seen/created/updated/unchanged/failed counters, and a bounded error summary.
+- Added indexes for recent-run and provider/resource freshness queries, plus database constraints for valid states, non-negative counters, and timestamp ordering.
+- The CLI sync path now supplies an independent audit session factory. Each attempt is committed as `running` before the provider call and finalized in a separate transaction, so a later ingestion rollback does not erase the failure record. Error summaries deliberately store exception type and a generic message rather than upstream exception text, which can contain request details.
+- The audit model is an internal operational record; no unauthenticated public endpoint exposes it. An authenticated operator view and freshness thresholds remain follow-up work.

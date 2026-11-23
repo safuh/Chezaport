@@ -276,3 +276,56 @@ async def test_sync_rejects_unconfigured_resource_before_fetch(
             await service.sync_teams("PL", "league-1")
 
         assert provider.team_calls == 0
+
+
+async def test_sync_persists_success_metrics_in_independent_audit_transaction(
+    session_factory,
+) -> None:
+    from chezaport.sports.models import SportsSyncRun
+
+    provider = StubProvider(
+        "audited-provider",
+        resources=frozenset({ProviderResource.TEAMS}),
+        teams=(ProviderTeam(external_id="team-a", name="Audit FC", slug="audit-fc"),),
+    )
+    registry = make_registry(provider)
+    async with session_factory() as session:
+        await seed_football(session)
+        service = SportsSyncService(session, registry, audit_session_factory=session_factory)
+        report = await service.sync_teams("PL", "league-1")
+        assert report.created == 1
+        await session.commit()
+    async with session_factory() as session:
+        run = await session.scalar(select(SportsSyncRun))
+        assert run is not None
+        assert run.provider == "audited-provider"
+        assert run.resource == "teams"
+        assert run.competition_code == "PL"
+        assert run.status == "succeeded"
+        assert run.records_fetched == 1
+        assert run.created == 1
+        assert run.completed_at is not None
+
+
+async def test_sync_failure_is_audited_even_when_ingestion_transaction_rolls_back(
+    session_factory,
+) -> None:
+    from chezaport.sports.models import SportsSyncRun
+
+    provider = StubProvider(
+        "failing-provider",
+        resources=frozenset({ProviderResource.TEAMS}),
+        failure=ProviderUnavailableError("sensitive upstream detail"),
+    )
+    registry = make_registry(provider)
+    async with session_factory() as session:
+        service = SportsSyncService(session, registry, audit_session_factory=session_factory)
+        with pytest.raises(ProviderUnavailableError):
+            await service.sync_teams("PL", "league-1")
+        await session.rollback()
+    async with session_factory() as session:
+        run = await session.scalar(select(SportsSyncRun))
+        assert run is not None
+        assert run.status == "failed"
+        assert run.completed_at is not None
+        assert "sensitive upstream detail" not in (run.error_summary or "")
