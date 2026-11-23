@@ -12,12 +12,14 @@ from sqlalchemy.orm import aliased
 
 from chezaport.sports.models import (
     Competition,
+    Country,
     Fixture,
     Player,
     Season,
     Sport,
     Team,
     TeamMembership,
+    Venue,
 )
 from chezaport.sports.services.analytics import (
     calculate_head_to_head,
@@ -73,6 +75,34 @@ class FixtureRead(BaseModel):
 
 class FixturePage(BaseModel):
     items: list[FixtureRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class CountryRead(BaseModel):
+    id: str
+    code: str | None
+    name: str
+
+
+class CountryPage(BaseModel):
+    items: list[CountryRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class VenueRead(BaseModel):
+    id: str
+    name: str
+    city: str | None
+    country_id: str | None
+    capacity: int | None
+
+
+class VenuePage(BaseModel):
+    items: list[VenueRead]
     total: int
     limit: int
     offset: int
@@ -180,6 +210,49 @@ async def list_competitions(
         statement = statement.where(Competition.is_active.is_(True))
     result = await session.scalars(statement)
     return list(result.all())
+
+
+@router.get("/countries", response_model=CountryPage)
+async def list_countries(
+    session: SessionDep,
+    search: str | None = Query(default=None, max_length=120),
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CountryPage:
+    """List countries and territories in the canonical catalogue."""
+    statement = select(Country)
+    if search is not None and search.strip():
+        pattern = f"%{search.strip()}%"
+        statement = statement.where(or_(Country.name.ilike(pattern), Country.code.ilike(pattern)))
+    total = int(await session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+    rows = await session.scalars(
+        statement.order_by(Country.name.asc(), Country.id.asc()).limit(limit).offset(offset)
+    )
+    items = [CountryRead.model_validate(row, from_attributes=True) for row in rows.all()]
+    return CountryPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/venues", response_model=VenuePage)
+async def list_venues(
+    session: SessionDep,
+    country_id: str | None = None,
+    search: str | None = Query(default=None, max_length=160),
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> VenuePage:
+    """List stadiums and venues, optionally filtered by country or name."""
+    statement = select(Venue)
+    if country_id is not None:
+        statement = statement.where(Venue.country_id == country_id)
+    if search is not None and search.strip():
+        pattern = f"%{search.strip()}%"
+        statement = statement.where(or_(Venue.name.ilike(pattern), Venue.city.ilike(pattern)))
+    total = int(await session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+    rows = await session.scalars(
+        statement.order_by(Venue.name.asc(), Venue.id.asc()).limit(limit).offset(offset)
+    )
+    items = [VenueRead.model_validate(row, from_attributes=True) for row in rows.all()]
+    return VenuePage(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/teams", response_model=TeamPage)

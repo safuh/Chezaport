@@ -54,6 +54,8 @@ All product endpoints are under `/api/v1`.
 | --- | --- | --- |
 | GET | `/sports` | Active sports |
 | GET | `/competitions` | Competitions, optionally filtered by `sport_id` |
+| GET | `/countries` | Countries and territories |
+| GET | `/venues` | Stadiums and venues, filterable by country and name |
 | GET | `/teams` | Teams, filterable by sport, country, competition, and season |
 | GET | `/seasons` | Competition seasons and current-season filter |
 | GET | `/players` | Player search by name, nationality, and position |

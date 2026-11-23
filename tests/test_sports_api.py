@@ -11,12 +11,14 @@ from chezaport.core.config import Settings
 from chezaport.core.database import Base
 from chezaport.sports.models import (
     Competition,
+    Country,
     Fixture,
     Player,
     Season,
     Sport,
     Team,
     TeamMembership,
+    Venue,
 )
 
 
@@ -43,7 +45,24 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             session.add(competition)
             await session.flush()
             season = Season(competition_id=competition.id, name="2026", is_current=True)
-            home = Team(sport_id=sport.id, name="Alpha FC", slug="alpha-fc")
+            country = Country(code="GBR", name="United Kingdom")
+            session.add(country)
+            await session.flush()
+            venue = Venue(
+                name="Alpha Ground",
+                city="London",
+                country_id=country.id,
+                capacity=60000,
+            )
+            session.add(venue)
+            await session.flush()
+            home = Team(
+                sport_id=sport.id,
+                country_id=country.id,
+                venue_id=venue.id,
+                name="Alpha FC",
+                slug="alpha-fc",
+            )
             away = Team(sport_id=sport.id, name="Beta FC", slug="beta-fc")
             player = Player(
                 first_name="Ada",
@@ -92,6 +111,8 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             f"/api/v1/teams/{team_id}/form",
             params={"competition_id": competition_id, "season_id": season_id},
         )
+        countries = client.get("/api/v1/countries", params={"search": "United"})
+        venues = client.get("/api/v1/venues", params={"search": "Alpha Ground"})
         teams = client.get(
             "/api/v1/teams",
             params={"competition_id": competition_id, "season_id": season_id},
@@ -125,6 +146,12 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert standings.json()["standings"][0]["points"] == 3
     assert form.status_code == 200
     assert form.json()["form"][0]["outcome"] == "W"
+    assert countries.status_code == 200
+    assert countries.json()["total"] == 1
+    assert countries.json()["items"][0]["code"] == "GBR"
+    assert venues.status_code == 200
+    assert venues.json()["total"] == 1
+    assert venues.json()["items"][0]["capacity"] == 60000
     assert teams.status_code == 200
     assert teams.json()["total"] == 2
     assert teams.json()["items"][0]["name"] == "Alpha FC"

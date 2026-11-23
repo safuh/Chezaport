@@ -20,7 +20,7 @@ football-first public API. It is not a frontend or mobile application.
 
 - Repository: [safuh/Chezaport](https://github.com/safuh/Chezaport)
 - Working branch: `feature/sports-platform-foundation`
-- Latest pushed baseline: `dabac9c` (dependency audit, CodeQL, and deployment hardening)
+- Latest pushed baseline: `212ed72` (team, season, and player catalogue APIs)
 - Local working directory: `/home/harry/AceCode/FastApiBackbone-CLI/Chezaport`
 - Runtime: Python 3.11 virtual environment, uv, SQLite local default, PostgreSQL
   support, Podman-compatible Docker CLI.
@@ -40,8 +40,9 @@ football-first public API. It is not a frontend or mobile application.
 
 ## Work completed in this development increment
 
-- Added read APIs for teams, competition seasons, player search and profiles,
-  and date-aware team squads with historical registration details.
+- Added read APIs for countries, venues, teams, competition seasons, player
+  search and profiles, and date-aware team squads with historical registration
+  details. Catalogue queries support bounded pagination and filters.
 - Added API contract coverage for player registration history and as-of squad
   membership, including exclusion before a registration's start date.
 - Added deterministic football standings from completed fixtures using 3-1-0
@@ -91,13 +92,14 @@ football-first public API. It is not a frontend or mobile application.
 - `make check` before the latest catalogue API increment: 127 passed,
   2 skipped, and 2 upstream dependency deprecation warnings. Formatting,
   Ruff lint, and mypy passed.
-- The expanded sports API contract test passed after adding team, season, player,
-  player-history, and date-aware squad endpoints; rerun the full suite after
-  this increment.
+- `make check`: 127 passed, 2 skipped, and 2 upstream dependency deprecation
+  warnings after the country/venue API increment. Formatting, Ruff lint, and
+  mypy passed.
 - `make audit`: passed; OSV reported no known vulnerabilities in the locked
   runtime dependency set after upgrading certifi, Mako, and PyJWT.
-- GitHub Actions CI and the new CodeQL security-extended workflow both passed
-  for commit `dabac9c`.
+- GitHub Actions CI and the CodeQL security-extended workflow both passed
+  for commit `212ed72`; the country/venue API increment will trigger a fresh
+  run when pushed.
 - Staging and production Compose configurations parse successfully with a
   placeholder PostgreSQL URL.
 - PostgreSQL-specific tests against a temporary local PostgreSQL 17 container:
