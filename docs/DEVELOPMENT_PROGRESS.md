@@ -20,7 +20,7 @@ football-first public API. It is not a frontend or mobile application.
 
 - Repository: [safuh/Chezaport](https://github.com/safuh/Chezaport)
 - Working branch: `feature/sports-platform-foundation`
-- Latest pushed baseline before this increment: `439fcb5` (fixture detail endpoint)
+- Latest pushed commit: `b9afbbd` (competition-season statistics)
 - Local working directory: `/home/harry/AceCode/FastApiBackbone-CLI/Chezaport`
 - Runtime: Python 3.11 virtual environment, uv, SQLite local default, PostgreSQL
   support, Podman-compatible Docker CLI.
