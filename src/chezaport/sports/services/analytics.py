@@ -80,6 +80,54 @@ async def _finished_fixtures(
     return [(fixture, home_name, away_name) for fixture, home_name, away_name in result.all()]
 
 
+async def calculate_competition_statistics(
+    session: AsyncSession, *, competition_id: str, season_id: str
+) -> dict[str, object]:
+    """Summarize completed match outcomes and scoring for one competition season."""
+    fixtures = await _finished_fixtures(session, competition_id=competition_id, season_id=season_id)
+    home_wins = draws = away_wins = home_goals = away_goals = 0
+    highest: dict[str, object] | None = None
+    highest_goals = -1
+    total_goals = 0
+    for fixture, home_name, away_name in fixtures:
+        assert fixture.home_score is not None and fixture.away_score is not None
+        home_score, away_score = fixture.home_score, fixture.away_score
+        home_goals += home_score
+        away_goals += away_score
+        total_goals += home_score + away_score
+        if home_score > away_score:
+            home_wins += 1
+        elif home_score < away_score:
+            away_wins += 1
+        else:
+            draws += 1
+        if home_score + away_score > highest_goals:
+            highest_goals = home_score + away_score
+            highest = {
+                "fixture_id": fixture.id,
+                "kickoff_at": fixture.kickoff_at,
+                "home_team_id": fixture.home_team_id,
+                "home_team_name": home_name,
+                "away_team_id": fixture.away_team_id,
+                "away_team_name": away_name,
+                "home_score": home_score,
+                "away_score": away_score,
+                "total_goals": home_score + away_score,
+            }
+    played = len(fixtures)
+    return {
+        "played": played,
+        "total_goals": total_goals,
+        "average_goals_per_match": round(total_goals / played, 2) if played else None,
+        "home_goals": home_goals,
+        "away_goals": away_goals,
+        "home_wins": home_wins,
+        "draws": draws,
+        "away_wins": away_wins,
+        "highest_scoring_match": highest,
+    }
+
+
 async def calculate_standings(
     session: AsyncSession, *, competition_id: str, season_id: str
 ) -> list[dict[str, object]]:

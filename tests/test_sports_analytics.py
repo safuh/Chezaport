@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from chezaport.core.database import Base
 from chezaport.sports.models import Competition, Fixture, Season, Sport, Team
 from chezaport.sports.services.analytics import (
+    calculate_competition_statistics,
     calculate_head_to_head,
     calculate_standings,
     calculate_team_form,
@@ -75,6 +76,24 @@ async def analytics_session():
             yield session, competition.id, season.id, home.id, away.id, third.id
     finally:
         await engine.dispose()
+
+
+async def test_competition_statistics_only_count_finished_results(analytics_session):
+    session, competition_id, season_id, _, _, _ = analytics_session
+
+    statistics = await calculate_competition_statistics(
+        session, competition_id=competition_id, season_id=season_id
+    )
+
+    assert statistics["played"] == 2
+    assert statistics["total_goals"] == 4
+    assert statistics["average_goals_per_match"] == 2.0
+    assert statistics["home_goals"] == 3
+    assert statistics["away_goals"] == 1
+    assert statistics["home_wins"] == 1
+    assert statistics["draws"] == 1
+    assert statistics["away_wins"] == 0
+    assert statistics["highest_scoring_match"]["total_goals"] == 2
 
 
 async def test_standings_ignore_unfinished_fixtures_and_apply_three_one_zero(analytics_session):

@@ -105,6 +105,10 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
         fixtures = client.get("/api/v1/fixtures", params={"competition_id": competition_id})
         fixture_detail = client.get(f"/api/v1/fixtures/{fixtures.json()['items'][0]['id']}")
         missing_fixture = client.get("/api/v1/fixtures/not-a-real-fixture")
+        statistics = client.get(
+            f"/api/v1/competitions/{competition_id}/statistics",
+            params={"season_id": season_id},
+        )
         standings = client.get(
             f"/api/v1/competitions/{competition_id}/standings",
             params={"season_id": season_id},
@@ -149,6 +153,11 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert fixture_detail.json()["season_name"] == "2026"
     assert fixture_detail.json()["venue_name"] is None
     assert missing_fixture.status_code == 404
+    assert statistics.status_code == 200
+    assert statistics.json()["statistics"]["played"] == 1
+    assert statistics.json()["statistics"]["total_goals"] == 2
+    assert statistics.json()["statistics"]["average_goals_per_match"] == 2.0
+    assert statistics.json()["statistics"]["home_wins"] == 1
     assert standings.status_code == 200
     assert standings.json()["standings"][0]["points"] == 3
     assert form.status_code == 200

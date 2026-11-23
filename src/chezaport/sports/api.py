@@ -22,6 +22,7 @@ from chezaport.sports.models import (
     Venue,
 )
 from chezaport.sports.services.analytics import (
+    calculate_competition_statistics,
     calculate_head_to_head,
     calculate_standings,
     calculate_team_form,
@@ -562,6 +563,24 @@ async def _validate_competition_season(
     season = await session.get(Season, season_id)
     if competition is None or season is None or season.competition_id != competition_id:
         raise HTTPException(status_code=404, detail="Competition season not found")
+
+
+@router.get("/competitions/{competition_id}/statistics")
+async def competition_statistics(
+    competition_id: str,
+    session: SessionDep,
+    season_id: str,
+) -> dict[str, object]:
+    """Return scoring and home/away outcome statistics for a competition season."""
+    await _validate_competition_season(session, competition_id, season_id)
+    statistics = await calculate_competition_statistics(
+        session, competition_id=competition_id, season_id=season_id
+    )
+    return {
+        "competition_id": competition_id,
+        "season_id": season_id,
+        "statistics": statistics,
+    }
 
 
 @router.get("/competitions/{competition_id}/standings")

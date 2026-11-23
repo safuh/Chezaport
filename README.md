@@ -15,7 +15,7 @@ SQLite (local) · PostgreSQL (staging/production) · Docker Compose.
 - Provider-neutral normalized schemas, capability-based provider routing,
   bounded retry policy, and transaction-safe/idempotent ingestion services.
 - Versioned read API for sports, competitions, fixtures and match detail, standings, team form,
-  and head-to-head results.
+  and head-to-head results, plus competition scoring statistics.
 - Optional Argon2/JWT identity composition with registration, login, refresh
   rotation, logout, and refresh-token revocation.
 - Health/readiness endpoints, correlation IDs, structured logging, migrations,
@@ -63,6 +63,7 @@ All product endpoints are under `/api/v1`.
 | GET | `/teams/{team_id}/squad` | Team registrations active on a requested date |
 | GET | `/fixtures` | Filtered fixtures with bounded pagination |
 | GET | `/fixtures/{fixture_id}` | Match detail with competition, season, team, and venue context |
+| GET | `/competitions/{competition_id}/statistics?season_id=...` | Scoring totals, averages, home/away outcomes, highest-scoring match |
 | GET | `/competitions/{competition_id}/standings?season_id=...` | 3-1-0 league table |
 | GET | `/teams/{team_id}/form?competition_id=...&season_id=...` | Recent completed results |
 | GET | `/teams/head-to-head?... ` | Completed meetings between two teams |
