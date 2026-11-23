@@ -92,6 +92,13 @@ football-first public API. It is not a frontend or mobile application.
   port 8000.
 - CI remains independent of provider credentials and live sports-data calls.
 
+- Added cross-season competition comparison: each season reports completed-match
+  scoring, home/draw/away outcomes, number of teams with results, final-table
+  leader and highest-scoring match. Seasons without completed fixtures remain
+  visible with null leader/average values rather than fabricated results.
+- Added team-season performance endpoint with overall and home/away records,
+  goals, clean sheets, win rate and biggest victory.
+
 ## Verification completed
 
 - `make check` before the latest catalogue API increment: 127 passed,
@@ -104,6 +111,9 @@ football-first public API. It is not a frontend or mobile application.
   2 upstream dependency deprecation warnings; formatting, Ruff lint, and mypy passed.
 - `make check` after competition statistics: 128 passed, 2 skipped, and 2
   upstream dependency deprecation warnings; formatting, Ruff lint, and mypy passed.
+- `make check` after team-season statistics and cross-season comparison: 130 passed,
+  2 skipped, and 2 upstream dependency deprecation warnings; formatting, Ruff lint,
+  and mypy passed.
 - `make audit`: passed; OSV reported no known vulnerabilities in the locked
   runtime dependency set after upgrading certifi, Mako, and PyJWT.
 - GitHub Actions CI and the CodeQL security-extended workflow both passed

@@ -109,6 +109,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             f"/api/v1/competitions/{competition_id}/statistics",
             params={"season_id": season_id},
         )
+        season_comparison = client.get(f"/api/v1/competitions/{competition_id}/season-comparison")
         standings = client.get(
             f"/api/v1/competitions/{competition_id}/standings",
             params={"season_id": season_id},
@@ -162,6 +163,9 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert statistics.json()["statistics"]["total_goals"] == 2
     assert statistics.json()["statistics"]["average_goals_per_match"] == 2.0
     assert statistics.json()["statistics"]["home_wins"] == 1
+    assert season_comparison.status_code == 200
+    assert len(season_comparison.json()["seasons"]) == 1
+    assert season_comparison.json()["seasons"][0]["leader"]["team_name"] == "Alpha FC"
     assert standings.status_code == 200
     assert standings.json()["standings"][0]["points"] == 3
     assert form.status_code == 200

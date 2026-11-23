@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from chezaport.sports.models import Fixture, Team
+from chezaport.sports.models import Fixture, Season, Team
 
 
 @dataclass(slots=True)
@@ -126,6 +126,55 @@ async def calculate_competition_statistics(
         "away_wins": away_wins,
         "highest_scoring_match": highest,
     }
+
+
+async def calculate_competition_season_comparison(
+    session: AsyncSession, *, competition_id: str
+) -> list[dict[str, object]]:
+    """Compare completed-season outcomes and scoring within one competition."""
+    result = await session.execute(
+        select(Season)
+        .where(Season.competition_id == competition_id)
+        .order_by(Season.start_date.asc(), Season.name.asc(), Season.id.asc())
+    )
+    seasons = list(result.scalars().all())
+    comparison: list[dict[str, object]] = []
+    for season in seasons:
+        statistics = await calculate_competition_statistics(
+            session, competition_id=competition_id, season_id=season.id
+        )
+        standings = await calculate_standings(
+            session, competition_id=competition_id, season_id=season.id
+        )
+        champion = standings[0] if standings else None
+        comparison.append(
+            {
+                "season_id": season.id,
+                "season_name": season.name,
+                "start_date": season.start_date,
+                "end_date": season.end_date,
+                "played": statistics["played"],
+                "total_goals": statistics["total_goals"],
+                "average_goals_per_match": statistics["average_goals_per_match"],
+                "home_wins": statistics["home_wins"],
+                "draws": statistics["draws"],
+                "away_wins": statistics["away_wins"],
+                "teams_with_results": len(standings),
+                "leader": (
+                    {
+                        "team_id": champion["team_id"],
+                        "team_name": champion["team_name"],
+                        "points": champion["points"],
+                        "goal_difference": champion["goal_difference"],
+                        "position": champion["position"],
+                    }
+                    if champion is not None
+                    else None
+                ),
+                "highest_scoring_match": statistics["highest_scoring_match"],
+            }
+        )
+    return comparison
 
 
 async def calculate_standings(

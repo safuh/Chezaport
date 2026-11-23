@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from chezaport.core.database import Base
 from chezaport.sports.models import Competition, Fixture, Season, Sport, Team
 from chezaport.sports.services.analytics import (
+    calculate_competition_season_comparison,
     calculate_competition_statistics,
     calculate_head_to_head,
     calculate_standings,
@@ -95,6 +96,38 @@ async def test_competition_statistics_only_count_finished_results(analytics_sess
     assert statistics["draws"] == 1
     assert statistics["away_wins"] == 0
     assert statistics["highest_scoring_match"]["total_goals"] == 2
+
+
+async def test_competition_season_comparison_reports_each_season(analytics_session):
+    session, competition_id, season_id, home_id, away_id, _ = analytics_session
+    previous = Season(competition_id=competition_id, name="2025")
+    session.add(previous)
+    await session.flush()
+    session.add(
+        Fixture(
+            competition_id=competition_id,
+            season_id=previous.id,
+            home_team_id=away_id,
+            away_team_id=home_id,
+            kickoff_at=datetime(2025, 8, 1, tzinfo=UTC),
+            status="finished",
+            home_score=0,
+            away_score=2,
+        )
+    )
+    await session.flush()
+
+    comparison = await calculate_competition_season_comparison(
+        session, competition_id=competition_id
+    )
+
+    assert [row["season_name"] for row in comparison] == ["2025", "2026"]
+    assert comparison[0]["played"] == 1
+    assert comparison[0]["total_goals"] == 2
+    assert comparison[0]["leader"]["team_id"] == home_id
+    assert comparison[0]["leader"]["points"] == 3
+    assert comparison[1]["played"] == 2
+    assert comparison[1]["leader"]["team_id"] == home_id
 
 
 async def test_standings_ignore_unfinished_fixtures_and_apply_three_one_zero(analytics_session):
