@@ -1,10 +1,11 @@
 """Read-only, versioned sports API for catalog, fixtures, and analytics."""
 
-from collections.abc import AsyncIterator
-from datetime import date, datetime
+from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import UTC, date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,7 @@ from chezaport.sports.models import (
     Player,
     Season,
     Sport,
+    SportsSyncRun,
     Team,
     TeamMembership,
     Venue,
@@ -31,6 +33,7 @@ from chezaport.sports.services.analytics import (
 )
 
 router = APIRouter(tags=["sports"])
+_bearer = HTTPBearer(auto_error=False)
 
 
 async def _session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -40,6 +43,158 @@ async def _session(request: Request) -> AsyncIterator[AsyncSession]:
 
 
 SessionDep = Annotated[AsyncSession, Depends(_session)]
+
+
+async def _require_sync_operator(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
+) -> None:
+    """Delegate access-token and operator-role checks to the host identity layer."""
+    validator: Callable[[str], Awaitable[bool]] | None = getattr(
+        request.app.state, "sync_operator_token_validator", None
+    )
+    if validator is None:
+        raise HTTPException(status_code=503, detail="Operator authentication is not configured")
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Bearer access token required")
+    if not await validator(credentials.credentials):
+        raise HTTPException(status_code=403, detail="Operator access required")
+
+
+class SyncRunRead(BaseModel):
+    id: str
+    provider: str
+    resource: str
+    competition_code: str | None
+    status: str
+    started_at: datetime
+    completed_at: datetime | None
+    records_fetched: int
+    records_seen: int
+    created: int
+    updated: int
+    unchanged: int
+    failed: int
+    error_summary: str | None
+    duration_seconds: float | None
+
+
+class SyncRunPage(BaseModel):
+    items: list[SyncRunRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class SyncFreshnessRead(BaseModel):
+    provider: str
+    resource: str
+    last_status: str
+    last_started_at: datetime
+    last_completed_at: datetime | None
+    age_seconds: float | None
+    is_stale: bool
+
+
+@router.get(
+    "/ops/sync-runs",
+    response_model=SyncRunPage,
+    dependencies=[Depends(_require_sync_operator)],
+)
+async def list_sync_runs(
+    session: SessionDep,
+    provider: str | None = Query(default=None, max_length=80),
+    resource: str | None = Query(default=None, max_length=32),
+    status_filter: str | None = Query(
+        default=None,
+        alias="status",
+        pattern="^(running|succeeded|partial|failed)$",
+    ),
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> SyncRunPage:
+    """List recent synchronization attempts for authenticated operators."""
+    statement = select(SportsSyncRun)
+    if provider:
+        statement = statement.where(SportsSyncRun.provider == provider.strip().lower())
+    if resource:
+        statement = statement.where(SportsSyncRun.resource == resource.strip().lower())
+    if status_filter:
+        statement = statement.where(SportsSyncRun.status == status_filter)
+    total = int(await session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+    rows = await session.scalars(
+        statement.order_by(SportsSyncRun.started_at.desc(), SportsSyncRun.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    items: list[SyncRunRead] = []
+    for run in rows.all():
+        duration = None
+        if run.completed_at is not None:
+            start = run.started_at
+            end = run.completed_at
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=UTC)
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=UTC)
+            duration = max(0.0, (end - start).total_seconds())
+        items.append(
+            SyncRunRead(
+                id=run.id,
+                provider=run.provider,
+                resource=run.resource,
+                competition_code=run.competition_code,
+                status=run.status,
+                started_at=run.started_at,
+                completed_at=run.completed_at,
+                records_fetched=run.records_fetched,
+                records_seen=run.records_seen,
+                created=run.created,
+                updated=run.updated,
+                unchanged=run.unchanged,
+                failed=run.failed,
+                error_summary=run.error_summary,
+                duration_seconds=duration,
+            )
+        )
+    return SyncRunPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get(
+    "/ops/sync-freshness",
+    response_model=list[SyncFreshnessRead],
+    dependencies=[Depends(_require_sync_operator)],
+)
+async def get_sync_freshness(
+    session: SessionDep,
+    stale_after_seconds: Annotated[int, Query(ge=60, le=604800)] = 86400,
+) -> list[SyncFreshnessRead]:
+    """Summarize latest provider/resource attempts and flag stale data."""
+    rows = await session.scalars(
+        select(SportsSyncRun).order_by(SportsSyncRun.started_at.desc(), SportsSyncRun.id.desc())
+    )
+    latest: dict[tuple[str, str], SportsSyncRun] = {}
+    for run in rows.all():
+        latest.setdefault((run.provider, run.resource), run)
+    now = datetime.now(UTC)
+    result: list[SyncFreshnessRead] = []
+    for (provider, resource), run in sorted(latest.items()):
+        timestamp = run.completed_at or run.started_at
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
+        age = max(0.0, (now - timestamp).total_seconds())
+        result.append(
+            SyncFreshnessRead(
+                provider=provider,
+                resource=resource,
+                last_status=run.status,
+                last_started_at=run.started_at,
+                last_completed_at=run.completed_at,
+                age_seconds=age,
+                is_stale=run.status != "succeeded" or age > stale_after_seconds,
+            )
+        )
+    return result
 
 
 class SportRead(BaseModel):

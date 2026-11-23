@@ -16,6 +16,7 @@ from chezaport.sports.models import (
     Player,
     Season,
     Sport,
+    SportsSyncRun,
     Team,
     TeamMembership,
     Venue,
@@ -92,6 +93,18 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
                     away_score=0,
                 )
             )
+            session.add(
+                SportsSyncRun(
+                    provider="demo-provider",
+                    resource="fixtures",
+                    status="succeeded",
+                    started_at=datetime(2026, 8, 1, tzinfo=UTC),
+                    completed_at=datetime(2026, 8, 1, 0, 0, 5, tzinfo=UTC),
+                    records_fetched=1,
+                    records_seen=1,
+                    created=1,
+                )
+            )
             await session.commit()
             identifiers = (sport.id, competition.id, season.id, home.id, player.id)
         await engine.dispose()
@@ -99,7 +112,21 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
 
     sport_id, competition_id, season_id, team_id, player_id = asyncio.run(prepare_database())
     settings = Settings(database_url=database_url)
-    with TestClient(create_app(settings)) as client:
+    app = create_app(settings)
+
+    async def validate_operator_token(token: str) -> bool:
+        return token == "operator-token"
+
+    app.state.sync_operator_token_validator = validate_operator_token
+    with TestClient(app) as client:
+        no_token = client.get("/api/v1/ops/sync-runs")
+        bad_token = client.get("/api/v1/ops/sync-runs", headers={"Authorization": "Bearer invalid"})
+        sync_runs = client.get(
+            "/api/v1/ops/sync-runs", headers={"Authorization": "Bearer operator-token"}
+        )
+        freshness = client.get(
+            "/api/v1/ops/sync-freshness", headers={"Authorization": "Bearer operator-token"}
+        )
         sports = client.get("/api/v1/sports")
         competitions = client.get("/api/v1/competitions", params={"sport_id": sport_id})
         fixtures = client.get("/api/v1/fixtures", params={"competition_id": competition_id})
@@ -146,6 +173,14 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             params={"as_of": "2025-12-31"},
         )
 
+    assert no_token.status_code == 401
+    assert bad_token.status_code == 403
+    assert sync_runs.status_code == 200
+    assert sync_runs.json()["total"] == 1
+    assert sync_runs.json()["items"][0]["duration_seconds"] == 5.0
+    assert freshness.status_code == 200
+    assert freshness.json()[0]["provider"] == "demo-provider"
+    assert freshness.json()[0]["is_stale"] is True
     assert sports.status_code == 200
     assert sports.json()[0]["code"] == "football"
     assert competitions.status_code == 200

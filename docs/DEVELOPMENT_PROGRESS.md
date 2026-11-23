@@ -170,3 +170,11 @@ runtime configuration outside Git.
 - Added indexes for recent-run and provider/resource freshness queries, plus database constraints for valid states, non-negative counters, and timestamp ordering.
 - The CLI sync path now supplies an independent audit session factory. Each attempt is committed as `running` before the provider call and finalized in a separate transaction, so a later ingestion rollback does not erase the failure record. Error summaries deliberately store exception type and a generic message rather than upstream exception text, which can contain request details.
 - The audit model is an internal operational record; no unauthenticated public endpoint exposes it. An authenticated operator view and freshness thresholds remain follow-up work.
+
+
+## Operator monitoring and reproducible demo data
+
+- Added `GET /api/v1/ops/sync-runs` with provider/resource/status filters and pagination, plus `GET /api/v1/ops/sync-freshness` with a caller-configurable stale threshold.
+- Both endpoints fail closed and delegate bearer-token validation and operator-role authorization to the host identity composition layer through `app.state.sync_operator_token_validator`. This repository's generic auth foundation does not yet define application roles, so the endpoints return 503 until the consuming app wires a real validator. No token-presence-only shortcut is accepted.
+- Added `uv run python -m chezaport.sports.demo`: an idempotent, credential-free synthetic league with four fictional teams and six completed fixtures. Its display name explicitly labels the data fictional; the command never overwrites or deletes records.
+- Added tests for operator authorization, sync history/freshness responses, and demo dataset idempotency.

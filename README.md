@@ -178,3 +178,30 @@ make audit
 
 PostgreSQL integration tests run when `TEST_DATABASE_URL` is configured. The
 local SQLite suite does not replace PostgreSQL migration/transaction testing.
+
+
+### Synthetic demonstration dataset
+
+A deterministic, explicitly fictional football dataset can be loaded without a
+provider token:
+
+```bash
+uv run alembic upgrade head
+uv run python -m chezaport.sports.demo
+```
+
+It creates the `Synthetic Demonstration League (Fictional Data)` competition,
+one `DEMO-2025` season, four fictional teams, and six completed fixtures. The
+command is idempotent and does not modify existing records. It is separate
+from provider synchronization and does not represent real-world results.
+
+### Operator synchronization monitoring
+
+The authenticated operator endpoints are `GET /api/v1/ops/sync-runs` and
+`GET /api/v1/ops/sync-freshness`. The host application must configure
+`app.state.sync_operator_token_validator` as an async callable that validates
+an access token and confirms the operator role. The endpoints fail closed with
+HTTP 503 when this identity integration is not configured, 401 when no bearer
+token is supplied, and 403 when the token is not authorized. Never implement
+this callback as a token-presence check; it must verify signature, expiry,
+subject, and operator permissions using the host identity provider.
