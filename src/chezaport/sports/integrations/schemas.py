@@ -85,3 +85,80 @@ class ProviderFixture(ProviderPayload):
         if self.home_team_external_id == self.away_team_external_id:
             raise ValueError("home and away teams must be different")
         return self
+
+
+class ProviderMatchPerson(BaseModel):
+    """A player reference embedded in a match report."""
+
+    external_id: str | None = None
+    name: str = Field(min_length=1, max_length=180)
+    position: str | None = Field(default=None, max_length=80)
+    shirt_number: int | None = Field(default=None, ge=1, le=99)
+
+
+class ProviderMatchTeamDetails(BaseModel):
+    """Line-up and match statistics supplied for one side."""
+
+    external_id: str = Field(min_length=1, max_length=160)
+    formation: str | None = Field(default=None, max_length=24)
+    lineup: tuple[ProviderMatchPerson, ...] = ()
+    bench: tuple[ProviderMatchPerson, ...] = ()
+    statistics: dict[str, int | float | None] = Field(default_factory=dict)
+
+
+class ProviderMatchGoal(BaseModel):
+    """A goal event with provider identity and the score at that event."""
+
+    minute: int | None = Field(default=None, ge=0, le=150)
+    injury_time: int | None = Field(default=None, ge=0, le=30)
+    kind: str | None = Field(default=None, max_length=32)
+    team_external_id: str | None = None
+    scorer_external_id: str | None = None
+    scorer_name: str | None = Field(default=None, max_length=180)
+    assist_external_id: str | None = None
+    assist_name: str | None = Field(default=None, max_length=180)
+    home_score: int | None = Field(default=None, ge=0)
+    away_score: int | None = Field(default=None, ge=0)
+
+
+class ProviderMatchBooking(BaseModel):
+    """A disciplinary event in a match."""
+
+    minute: int | None = Field(default=None, ge=0, le=150)
+    team_external_id: str | None = None
+    player_external_id: str | None = None
+    player_name: str | None = Field(default=None, max_length=180)
+    card: str = Field(min_length=1, max_length=24)
+
+
+class ProviderMatchSubstitution(BaseModel):
+    """A player substitution event."""
+
+    minute: int | None = Field(default=None, ge=0, le=150)
+    team_external_id: str | None = None
+    player_out_external_id: str | None = None
+    player_out_name: str | None = Field(default=None, max_length=180)
+    player_in_external_id: str | None = None
+    player_in_name: str | None = Field(default=None, max_length=180)
+
+
+class ProviderMatchDetails(BaseModel):
+    """Optional detailed match feed; empty collections mean no data supplied."""
+
+    external_id: str = Field(min_length=1, max_length=160)
+    kickoff_at: datetime
+    status: FixtureStatus
+    attendance: int | None = Field(default=None, ge=0)
+    venue: str | None = Field(default=None, max_length=160)
+    home_team: ProviderMatchTeamDetails
+    away_team: ProviderMatchTeamDetails
+    goals: tuple[ProviderMatchGoal, ...] = ()
+    bookings: tuple[ProviderMatchBooking, ...] = ()
+    substitutions: tuple[ProviderMatchSubstitution, ...] = ()
+
+    @field_validator("kickoff_at")
+    @classmethod
+    def match_time_must_be_aware(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("kickoff_at must include a timezone")
+        return value

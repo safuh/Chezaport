@@ -26,6 +26,12 @@ from chezaport.sports.integrations.errors import (
 from chezaport.sports.integrations.schemas import (
     ProviderCompetition,
     ProviderFixture,
+    ProviderMatchBooking,
+    ProviderMatchDetails,
+    ProviderMatchGoal,
+    ProviderMatchPerson,
+    ProviderMatchSubstitution,
+    ProviderMatchTeamDetails,
     ProviderSeason,
     ProviderTeam,
 )
@@ -191,20 +197,138 @@ class FootballDataOrgProvider:
             )
         return tuple(fixtures)
 
+    async def fetch_match_details(self, match_external_id: str) -> ProviderMatchDetails:
+        """Fetch an unfolded match report without exposing vendor payloads."""
+        payload = await self._get(
+            f"matches/{_safe_id(match_external_id)}",
+            headers={
+                "X-Unfold-Lineups": "true",
+                "X-Unfold-Bookings": "true",
+                "X-Unfold-Subs": "true",
+                "X-Unfold-Goals": "true",
+            },
+        )
+
+        def person(value: Any) -> ProviderMatchPerson | None:
+            if not isinstance(value, dict) or not value.get("name"):
+                return None
+            return ProviderMatchPerson(
+                external_id=str(value["id"]) if value.get("id") is not None else None,
+                name=str(value["name"]),
+                position=value.get("position"),
+                shirt_number=value.get("shirtNumber"),
+            )
+
+        def team_details(value: Any) -> ProviderMatchTeamDetails:
+            if not isinstance(value, dict) or value.get("id") is None:
+                raise ProviderUnavailableError("match detail response is missing a team identity")
+            lineup = tuple(
+                item for raw in value.get("lineup", []) if (item := person(raw)) is not None
+            )
+            bench = tuple(
+                item for raw in value.get("bench", []) if (item := person(raw)) is not None
+            )
+            raw_stats = value.get("statistics") or {}
+            statistics: dict[str, int | float | None] = (
+                {
+                    str(key): number
+                    for key, number in raw_stats.items()
+                    if isinstance(number, (int, float)) and not isinstance(number, bool)
+                }
+                if isinstance(raw_stats, dict)
+                else {}
+            )
+            return ProviderMatchTeamDetails(
+                external_id=str(value["id"]),
+                formation=value.get("formation"),
+                lineup=lineup,
+                bench=bench,
+                statistics=statistics,
+            )
+
+        goals: list[ProviderMatchGoal] = []
+        for item in _records(payload, "goals"):
+            scorer, assist = item.get("scorer") or {}, item.get("assist") or {}
+            score, team = item.get("score") or {}, item.get("team") or {}
+            goals.append(
+                ProviderMatchGoal(
+                    minute=item.get("minute"),
+                    injury_time=item.get("injuryTime"),
+                    kind=item.get("type"),
+                    team_external_id=str(team["id"]) if team.get("id") is not None else None,
+                    scorer_external_id=str(scorer["id"]) if scorer.get("id") is not None else None,
+                    scorer_name=scorer.get("name"),
+                    assist_external_id=str(assist["id"]) if assist.get("id") is not None else None,
+                    assist_name=assist.get("name"),
+                    home_score=score.get("home"),
+                    away_score=score.get("away"),
+                )
+            )
+
+        bookings: list[ProviderMatchBooking] = []
+        for item in _records(payload, "bookings"):
+            player, team = item.get("player") or {}, item.get("team") or {}
+            if item.get("card"):
+                bookings.append(
+                    ProviderMatchBooking(
+                        minute=item.get("minute"),
+                        team_external_id=str(team["id"]) if team.get("id") is not None else None,
+                        player_external_id=str(player["id"])
+                        if player.get("id") is not None
+                        else None,
+                        player_name=player.get("name"),
+                        card=str(item["card"]),
+                    )
+                )
+
+        substitutions: list[ProviderMatchSubstitution] = []
+        for item in _records(payload, "substitutions"):
+            player_out, player_in = item.get("playerOut") or {}, item.get("playerIn") or {}
+            team = item.get("team") or {}
+            substitutions.append(
+                ProviderMatchSubstitution(
+                    minute=item.get("minute"),
+                    team_external_id=str(team["id"]) if team.get("id") is not None else None,
+                    player_out_external_id=str(player_out["id"])
+                    if player_out.get("id") is not None
+                    else None,
+                    player_out_name=player_out.get("name"),
+                    player_in_external_id=str(player_in["id"])
+                    if player_in.get("id") is not None
+                    else None,
+                    player_in_name=player_in.get("name"),
+                )
+            )
+
+        return ProviderMatchDetails(
+            external_id=str(payload.get("id") or match_external_id),
+            kickoff_at=_datetime(payload.get("utcDate")),
+            status=_fixture_status(payload.get("status")),
+            attendance=payload.get("attendance"),
+            venue=payload.get("venue"),
+            home_team=team_details(payload.get("homeTeam")),
+            away_team=team_details(payload.get("awayTeam")),
+            goals=tuple(goals),
+            bookings=tuple(bookings),
+            substitutions=tuple(substitutions),
+        )
+
     async def _get(
         self,
         path: str,
         *,
         params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         url = urljoin(self.base_url, path.lstrip("/"))
-        headers = {"X-Auth-Token": self._token, "Accept": "application/json"}
+        request_headers = {"X-Auth-Token": self._token, "Accept": "application/json"}
+        request_headers.update(headers or {})
         try:
             if self._client is not None:
-                response = await self._client.get(url, headers=headers, params=params)
+                response = await self._client.get(url, headers=request_headers, params=params)
             else:
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
-                    response = await client.get(url, headers=headers, params=params)
+                    response = await client.get(url, headers=request_headers, params=params)
         except httpx.TimeoutException as exc:
             raise ProviderUnavailableError("football-data.org request timed out") from exc
         except httpx.HTTPError as exc:

@@ -178,3 +178,81 @@ async def test_forbidden_resource_is_reported_as_configuration_error(provider_fa
 def test_provider_requires_a_nonblank_token():
     with pytest.raises(ProviderConfigurationError):
         FootballDataOrgProvider("   ")
+
+
+@pytest.mark.asyncio
+async def test_fetch_match_details_requests_unfolded_data_and_normalizes_events(provider_factory):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/matches/999")
+        assert request.headers["X-Unfold-Lineups"] == "true"
+        assert request.headers["X-Unfold-Bookings"] == "true"
+        assert request.headers["X-Unfold-Subs"] == "true"
+        assert request.headers["X-Unfold-Goals"] == "true"
+        assert request.headers["X-Auth-Token"] == "test-token"
+        return httpx.Response(
+            200,
+            json={
+                "id": 999,
+                "utcDate": "2025-08-16T16:30:00Z",
+                "status": "FINISHED",
+                "attendance": 60000,
+                "venue": "Example Stadium",
+                "homeTeam": {
+                    "id": 57,
+                    "formation": "4-3-3",
+                    "lineup": [
+                        {"id": 100, "name": "Player One", "position": "Forward", "shirtNumber": 9}
+                    ],
+                    "bench": [{"id": 101, "name": "Player Two", "shirtNumber": 10}],
+                    "statistics": {"ball_possession": 61, "shots": 12, "unknown": "ignored"},
+                },
+                "awayTeam": {"id": 58, "lineup": [], "bench": [], "statistics": {}},
+                "goals": [
+                    {
+                        "minute": 42,
+                        "injuryTime": 2,
+                        "type": "REGULAR",
+                        "team": {"id": 57},
+                        "scorer": {"id": 100, "name": "Player One"},
+                        "assist": {"id": 102, "name": "Player Three"},
+                        "score": {"home": 1, "away": 0},
+                    }
+                ],
+                "bookings": [
+                    {
+                        "minute": 55,
+                        "team": {"id": 58},
+                        "player": {"id": 103, "name": "Player Four"},
+                        "card": "YELLOW",
+                    }
+                ],
+                "substitutions": [
+                    {
+                        "minute": 70,
+                        "team": {"id": 58},
+                        "playerOut": {"id": 104, "name": "Player Five"},
+                        "playerIn": {"id": 105, "name": "Player Six"},
+                    }
+                ],
+            },
+        )
+
+    provider = provider_factory(handler)
+    details = await provider.fetch_match_details("999")
+
+    assert details.external_id == "999"
+    assert details.status is FixtureStatus.FINISHED
+    assert details.home_team.formation == "4-3-3"
+    assert details.home_team.lineup[0].external_id == "100"
+    assert details.home_team.statistics == {"ball_possession": 61, "shots": 12}
+    assert details.goals[0].scorer_name == "Player One"
+    assert details.goals[0].assist_external_id == "102"
+    assert details.bookings[0].card == "YELLOW"
+    assert details.substitutions[0].player_in_name == "Player Six"
+    assert details.away_team.lineup == ()
+
+
+async def test_fetch_match_details_requires_numeric_provider_id(provider_factory):
+    provider = provider_factory(lambda _: httpx.Response(200, json={}))
+    with pytest.raises(ValueError, match="numeric"):
+        await provider.fetch_match_details("not-a-provider-id")

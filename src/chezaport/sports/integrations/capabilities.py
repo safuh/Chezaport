@@ -11,6 +11,7 @@ class ProviderResource(StrEnum):
     SEASONS = "seasons"
     TEAMS = "teams"
     FIXTURES = "fixtures"
+    MATCH_DETAILS = "match_details"
 
 
 @dataclass(frozen=True, slots=True)
