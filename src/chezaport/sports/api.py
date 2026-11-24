@@ -137,6 +137,17 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         )
         or 0
     )
+    past_scheduled_fixtures = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(Fixture)
+            .where(
+                Fixture.status == "scheduled",
+                Fixture.kickoff_at < datetime.now(UTC),
+            )
+        )
+        or 0
+    )
     home_team = aliased(Team)
     away_team = aliased(Team)
     participant_sport_mismatch = int(
@@ -246,6 +257,7 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
     checks = [
         {"code": "finished_fixture_missing_score", "count": finished_missing_score},
         {"code": "fixture_partial_score", "count": partial_score},
+        {"code": "fixture_past_kickoff_still_scheduled", "count": past_scheduled_fixtures},
         {"code": "fixture_season_competition_mismatch", "count": season_mismatch},
         {"code": "fixture_participant_sport_mismatch", "count": participant_sport_mismatch},
         {"code": "orphan_external_id_mapping", "count": orphan_mappings},
@@ -259,6 +271,7 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
     total_issues = (
         finished_missing_score
         + partial_score
+        + past_scheduled_fixtures
         + season_mismatch
         + participant_sport_mismatch
         + orphan_mappings

@@ -1,7 +1,7 @@
 """HTTP contract tests for the public sports API."""
 
 import asyncio
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -106,6 +106,17 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
                     home_score=None,
                     away_score=None,
                     round_name="Integrity test anomaly",
+                )
+            )
+            session.add(
+                Fixture(
+                    competition_id=competition.id,
+                    season_id=season.id,
+                    home_team_id=home.id,
+                    away_team_id=away.id,
+                    kickoff_at=datetime.now(UTC) - timedelta(days=1),
+                    status="scheduled",
+                    round_name="Past scheduled anomaly",
                 )
             )
             session.add(
@@ -220,11 +231,13 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert freshness.json()[0]["is_stale"] is True
     assert data_quality.status_code == 200
     assert data_quality.json()["status"] == "degraded"
-    assert data_quality.json()["total_issues"] == 2
+    assert data_quality.json()["total_issues"] == 3
     quality_checks = {item["code"]: item["count"] for item in data_quality.json()["checks"]}
     assert quality_checks["finished_fixture_missing_score"] == 1
+    assert quality_checks["fixture_past_kickoff_still_scheduled"] == 1
     assert quality_checks["orphan_external_id_mapping"] == 1
     assert "Provider mappings with missing canonical records" in dashboard.text
+    assert "Past kick-off fixtures still marked scheduled" in dashboard.text
     assert dashboard.status_code == 200
     assert "League table" in dashboard.text
     assert "Team intelligence" in dashboard.text
@@ -242,7 +255,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert competitions.status_code == 200
     assert len(competitions.json()) == 1
     assert fixtures.status_code == 200
-    assert fixtures.json()["total"] == 2
+    assert fixtures.json()["total"] == 3
     assert fixtures.json()["items"][0]["home_team_name"] == "Alpha FC"
     assert fixture_detail.status_code == 200
     assert fixture_detail.json()["competition_name"] == "Sample League"
@@ -256,7 +269,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert statistics.json()["statistics"]["home_wins"] == 1
     assert season_comparison.status_code == 200
     assert matchdays.status_code == 200
-    assert matchdays.json()["total_matchdays"] == 2
+    assert matchdays.json()["total_matchdays"] == 3
     assert matchdays.json()["matchdays"][0]["name"] == "Matchday 1"
     assert matchdays.json()["matchdays"][0]["total_goals"] == 2
     assert matchdays.json()["matchdays"][0]["highest_scoring_fixture"]["home_team"] == "Alpha FC"
@@ -335,7 +348,7 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
                 season_id=season.id,
                 home_team_id=home.id,
                 away_team_id=away.id,
-                kickoff_at=datetime(2026, 8, 1, tzinfo=UTC),
+                kickoff_at=datetime.now(UTC) + timedelta(days=30),
             )
             session.add(fixture)
             await session.flush()
