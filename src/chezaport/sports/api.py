@@ -190,6 +190,59 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         )
         or 0
     )
+    expected_team_mappings = (
+        select(competition_mapping.provider.label("provider"), Team.id.label("entity_id"))
+        .select_from(competition_mapping)
+        .join(Competition, Competition.id == competition_mapping.entity_id)
+        .join(Fixture, Fixture.competition_id == Competition.id)
+        .join(Team, or_(Team.id == Fixture.home_team_id, Team.id == Fixture.away_team_id))
+        .where(competition_mapping.entity_type == "competition")
+        .distinct()
+        .subquery()
+    )
+    missing_provider_teams = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(expected_team_mappings)
+            .where(
+                ~select(1)
+                .select_from(ExternalIDMapping)
+                .where(
+                    ExternalIDMapping.provider == expected_team_mappings.c.provider,
+                    ExternalIDMapping.entity_type == "team",
+                    ExternalIDMapping.entity_id == expected_team_mappings.c.entity_id,
+                )
+                .exists()
+            )
+        )
+        or 0
+    )
+    expected_season_mappings = (
+        select(competition_mapping.provider.label("provider"), Season.id.label("entity_id"))
+        .select_from(competition_mapping)
+        .join(Competition, Competition.id == competition_mapping.entity_id)
+        .join(Season, Season.competition_id == Competition.id)
+        .where(competition_mapping.entity_type == "competition")
+        .distinct()
+        .subquery()
+    )
+    missing_provider_seasons = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(expected_season_mappings)
+            .where(
+                ~select(1)
+                .select_from(ExternalIDMapping)
+                .where(
+                    ExternalIDMapping.provider == expected_season_mappings.c.provider,
+                    ExternalIDMapping.entity_type == "season",
+                    ExternalIDMapping.entity_id == expected_season_mappings.c.entity_id,
+                )
+                .exists()
+            )
+        )
+        or 0
+    )
     checks = [
         {"code": "finished_fixture_missing_score", "count": finished_missing_score},
         {"code": "fixture_partial_score", "count": partial_score},
@@ -200,6 +253,8 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
             "code": "provider_fixture_missing_mapping",
             "count": unmapped_provider_fixtures,
         },
+        {"code": "provider_team_missing_mapping", "count": missing_provider_teams},
+        {"code": "provider_season_missing_mapping", "count": missing_provider_seasons},
     ]
     total_issues = (
         finished_missing_score
@@ -208,6 +263,8 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         + participant_sport_mismatch
         + orphan_mappings
         + unmapped_provider_fixtures
+        + missing_provider_teams
+        + missing_provider_seasons
     )
     return {
         "status": "healthy" if total_issues == 0 else "degraded",

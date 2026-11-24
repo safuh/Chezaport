@@ -347,4 +347,6 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
     checks = {item["code"]: item["count"] for item in payload["checks"]}
     assert checks["fixture_participant_sport_mismatch"] == 1
     assert checks["provider_fixture_missing_mapping"] == 1
-    assert payload["total_issues"] == 2
+    assert checks["provider_team_missing_mapping"] == 2
+    assert checks["provider_season_missing_mapping"] == 1
+    assert payload["total_issues"] == 5
