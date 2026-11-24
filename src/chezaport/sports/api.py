@@ -347,15 +347,25 @@ async def get_sync_freshness(
     stale_after_seconds: Annotated[int, Query(ge=60, le=604800)] = 86400,
 ) -> list[SyncFreshnessRead]:
     """Summarize latest provider/resource attempts for the public data-status display."""
+    ranked_runs = select(
+        SportsSyncRun.id.label("run_id"),
+        func.row_number()
+        .over(
+            partition_by=(SportsSyncRun.provider, SportsSyncRun.resource),
+            order_by=(SportsSyncRun.started_at.desc(), SportsSyncRun.id.desc()),
+        )
+        .label("position"),
+    ).subquery()
     rows = await session.scalars(
-        select(SportsSyncRun).order_by(SportsSyncRun.started_at.desc(), SportsSyncRun.id.desc())
+        select(SportsSyncRun)
+        .join(ranked_runs, ranked_runs.c.run_id == SportsSyncRun.id)
+        .where(ranked_runs.c.position == 1)
+        .order_by(SportsSyncRun.provider.asc(), SportsSyncRun.resource.asc())
     )
-    latest: dict[tuple[str, str], SportsSyncRun] = {}
-    for run in rows.all():
-        latest.setdefault((run.provider, run.resource), run)
     now = datetime.now(UTC)
     result: list[SyncFreshnessRead] = []
-    for (provider, resource), run in sorted(latest.items()):
+    for run in rows.all():
+        provider, resource = run.provider, run.resource
         timestamp = run.completed_at or run.started_at
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=UTC)

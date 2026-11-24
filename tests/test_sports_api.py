@@ -120,6 +120,19 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
                 SportsSyncRun(
                     provider="demo-provider",
                     resource="fixtures",
+                    status="failed",
+                    started_at=datetime(2026, 7, 31, tzinfo=UTC),
+                    completed_at=datetime(2026, 7, 31, 0, 0, 2, tzinfo=UTC),
+                    records_fetched=0,
+                    records_seen=0,
+                    failed=1,
+                    error_summary="Older failed attempt",
+                )
+            )
+            session.add(
+                SportsSyncRun(
+                    provider="demo-provider",
+                    resource="fixtures",
                     status="succeeded",
                     started_at=datetime(2026, 8, 1, tzinfo=UTC),
                     completed_at=datetime(2026, 8, 1, 0, 0, 5, tzinfo=UTC),
@@ -199,7 +212,8 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
         )
 
     assert sync_runs.status_code == 200
-    assert sync_runs.json()["total"] == 1
+    assert sync_runs.json()["total"] == 2
+    assert sync_runs.json()["items"][0]["status"] == "succeeded"
     assert sync_runs.json()["items"][0]["duration_seconds"] == 5.0
     assert freshness.status_code == 200
     assert freshness.json()[0]["provider"] == "demo-provider"
