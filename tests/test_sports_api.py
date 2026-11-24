@@ -325,13 +325,23 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
             )
             session.add(fixture)
             await session.flush()
-            session.add(
-                ExternalIDMapping(
-                    provider="sample-provider",
-                    entity_type="competition",
-                    entity_id=competition.id,
-                    external_id="sample-league",
-                )
+            session.add_all(
+                [
+                    ExternalIDMapping(
+                        provider="sample-provider",
+                        entity_type="competition",
+                        entity_id=competition.id,
+                        external_id="sample-league",
+                    ),
+                    # A mapping from another provider must not satisfy the
+                    # sample-provider team's expected mapping.
+                    ExternalIDMapping(
+                        provider="other-provider",
+                        entity_type="team",
+                        entity_id=home.id,
+                        external_id="other-home-id",
+                    ),
+                ]
             )
             await session.commit()
         await engine.dispose()
