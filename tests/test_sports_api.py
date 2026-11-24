@@ -288,3 +288,54 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert squad.json()["items"][0]["shirt_number"] == 9
     assert pre_registration_squad.status_code == 200
     assert pre_registration_squad.json()["total"] == 0
+
+
+def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> None:
+    database_path = tmp_path / "sports-quality.db"
+    database_url = f"sqlite+aiosqlite:///{database_path}"
+
+    async def prepare_database() -> None:
+        engine = create_async_engine(database_url)
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            football = Sport(code="football", name="Association football")
+            basketball = Sport(code="basketball", name="Basketball")
+            session.add_all([football, basketball])
+            await session.flush()
+            competition = Competition(
+                sport_id=football.id, name="Sample League", slug="sample-league"
+            )
+            session.add(competition)
+            await session.flush()
+            season = Season(competition_id=competition.id, name="2026")
+            home = Team(sport_id=football.id, name="Home FC", slug="home-fc")
+            away = Team(sport_id=basketball.id, name="Away BC", slug="away-bc")
+            session.add_all([competition, season, home, away])
+            await session.flush()
+            session.add(
+                Fixture(
+                    competition_id=competition.id,
+                    season_id=season.id,
+                    home_team_id=home.id,
+                    away_team_id=away.id,
+                    kickoff_at=datetime(2026, 8, 1, tzinfo=UTC),
+                )
+            )
+            await session.commit()
+        await engine.dispose()
+
+    asyncio.run(prepare_database())
+    app = create_app(Settings(database_url=database_url))
+    with TestClient(app) as client:
+        response = client.get("/api/v1/ops/data-quality")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "degraded"
+    checks = {item["code"]: item["count"] for item in payload["checks"]}
+    assert checks["fixture_participant_sport_mismatch"] == 1
+    assert payload["total_issues"] == 1

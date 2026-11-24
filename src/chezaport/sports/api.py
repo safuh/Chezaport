@@ -137,6 +137,24 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         )
         or 0
     )
+    home_team = aliased(Team)
+    away_team = aliased(Team)
+    participant_sport_mismatch = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(Fixture)
+            .join(Competition, Fixture.competition_id == Competition.id)
+            .join(home_team, Fixture.home_team_id == home_team.id)
+            .join(away_team, Fixture.away_team_id == away_team.id)
+            .where(
+                or_(
+                    home_team.sport_id != Competition.sport_id,
+                    away_team.sport_id != Competition.sport_id,
+                )
+            )
+        )
+        or 0
+    )
     season_mismatch = int(
         await session.scalar(
             select(func.count())
@@ -150,9 +168,16 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         {"code": "finished_fixture_missing_score", "count": finished_missing_score},
         {"code": "fixture_partial_score", "count": partial_score},
         {"code": "fixture_season_competition_mismatch", "count": season_mismatch},
+        {"code": "fixture_participant_sport_mismatch", "count": participant_sport_mismatch},
         {"code": "orphan_external_id_mapping", "count": orphan_mappings},
     ]
-    total_issues = finished_missing_score + partial_score + season_mismatch + orphan_mappings
+    total_issues = (
+        finished_missing_score
+        + partial_score
+        + season_mismatch
+        + participant_sport_mismatch
+        + orphan_mappings
+    )
     return {
         "status": "healthy" if total_issues == 0 else "degraded",
         "total_issues": total_issues,
