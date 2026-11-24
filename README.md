@@ -94,27 +94,16 @@ order. Only finished fixtures with both scores are counted. Squad membership is 
 date when omitted); player profiles retain historical team registrations.
 Fixture timestamps must be timezone-aware at ingestion boundaries.
 
-## Authentication
+## First-release access model
 
-Authentication remains optional. Set `JWT_SECRET_KEY` to a randomly generated
-secret of at least 32 characters to enable the built-in SQLAlchemy registration,
-login, refresh, logout, administrator, and operator authorization composition.
-`ACCESS_TOKEN_MINUTES` and `REFRESH_TOKEN_DAYS` control token lifetimes. Without
-a secret, authentication and privileged endpoints fail closed unless the host
-explicitly injects its own composition. New registrations always receive the
-least-privileged `viewer` role. `operator` and `admin` can access sync operations;
-role checks consult the current database value on every request, so demotion is
-immediate even while an access JWT remains valid.
+ChezaPort v1 is a public, read-only sports information and analytics product.
+**Visitors do not create accounts and do not sign in.** Leave `JWT_SECRET_KEY`
+unset for the first release. The optional identity and role-management code is
+reserved for a later release and is not needed to browse the site or API.
 
-The secret is read from protected runtime configuration; no secret or privileged
-default account is generated. For a local owner bootstrap after migrations:
-
-1. Set `JWT_SECRET_KEY` in your ignored local `.env` file.
-2. Register the intended owner through `POST /api/auth/register`.
-3. Promote that account from the trusted project shell:
-   `uv run python -m chezaport.identity.manage_roles --identifier owner@example.test --role admin`.
-4. Sign in through `POST /api/auth/login`; use the returned access token for
-   administrator and operator APIs. Assign `operator` only to trusted staff.
+The provider API token is a server-side integration credential, not a ChezaPort
+visitor account. Keep it in the ignored local `.env` file or a deployment secret;
+never expose it in browser JavaScript or public API responses.
 
 For hosts that need custom identity persistence or secret management, explicit
 factory and validator injection remains supported:
@@ -161,8 +150,29 @@ team, and fixture mapping, typed rate-limit/error handling, and mocked HTTP
 contract tests. The adapter is not enabled by default; configure
 `FOOTBALL_DATA_API_TOKEN` and `FOOTBALL_DATA_COMPETITION_CODES` in a protected
 runtime environment to register its competition routes. No token is needed for
-local development or CI. After verifying the provider's terms for the intended
-use, run a one-shot, idempotent local sync with:
+local development or CI. To obtain the provider token, the project owner should create an application
+account on the official [football-data.org registration page](https://www.football-data.org/client/register).
+The provider states that a key is issued after successful registration and is
+restricted to the application it was registered for. Review the [API quickstart](https://www.football-data.org/documentation/quickstart),
+[API reference](https://docs.football-data.org/general/v4/), and provider terms
+before using the feed. A project owner/adult should manage the provider account
+and any paid subscription.
+
+Add the token to your ignored local `.env` file:
+
+```dotenv
+FOOTBALL_DATA_API_TOKEN=replace_with_the_private_token
+FOOTBALL_DATA_COMPETITION_CODES=["PL"]
+```
+
+The token is never committed or delivered to the browser. The provider's free
+plan currently lists delayed scores and a 10-requests-per-minute limit; live
+scores require a plan that explicitly includes live-score access. Do not label
+delayed free-plan scores as real-time. Confirm coverage and display/attribution
+rights for the exact competitions before public launch.
+
+After verifying the provider's terms for the intended use, run a one-shot,
+idempotent local sync with:
 
 ```bash
 uv run python -m chezaport.sports.sync --competition PL --since 2026-08-01
@@ -170,8 +180,24 @@ uv run python -m chezaport.sports.sync --competition PL --since 2026-08-01
 
 The command syncs the configured competition catalogue, seasons, teams, and
 fixtures in one transaction; it aborts rather than committing partial ingestion
-if a record fails. The provider documents a free-plan limit of 10 calls per
-minute and restricted competition/resource coverage; check the current
+if a record fails. For continuous fixture updates, use the watch mode:
+
+```bash
+uv run python -m chezaport.sports.sync --watch --interval-seconds 120
+```
+
+Watch mode performs a full import once, then refreshes only fixture records every
+120 seconds. Each fixture refresh includes the previous seven days plus upcoming
+fixtures, so late score/status corrections can be picked up. Keep it running in
+a separate terminal from `make run`, or manage it as a supervised worker in
+staging/production. The dashboard refreshes its view every 30 seconds; actual
+data freshness is bounded by the provider plan, worker interval, rate limits,
+and provider update cadence.
+
+For a one-off refresh after the initial catalogue import, run
+`uv run python -m chezaport.sports.sync --fixtures-only`. The provider documents
+a free-plan limit of 10 calls per minute and restricted competition/resource
+coverage; check the current
 [API quickstart](https://www.football-data.org/documentation/quickstart) and
 [API policies](https://docs.football-data.org/general/v4/policies.html) before
 scheduling synchronization. Public display, attribution, caching, and
@@ -267,14 +293,11 @@ from provider synchronization and does not represent real-world results.
 
 ### Operator synchronization monitoring
 
-The authenticated operator endpoints are `GET /api/v1/ops/sync-runs` and
-`GET /api/v1/ops/sync-freshness`. The host application must configure
-`app.state.sync_operator_token_validator` as an async callable that validates
-an access token and confirms the operator role. The endpoints fail closed with
-HTTP 503 when this identity integration is not configured, 401 when no bearer
-token is supplied, and 403 when the token is not authorized. Never implement
-this callback as a token-presence check; it must verify signature, expiry,
-subject, and operator permissions using the host identity provider.
+The read-only endpoints `GET /api/v1/ops/sync-runs` and
+`GET /api/v1/ops/sync-freshness` are public in v1 so the dashboard can show
+provider freshness without requiring visitor accounts. They expose only
+non-secret run metadata; they do not provide a public sync trigger or reveal
+provider credentials.
 
 
 Role provisioning is a trusted-shell operation: `uv run python -m chezaport.identity.manage_roles --identifier user@example.com --role operator` (or `admin`). It requires direct access to the configured database and is not exposed as public self-service registration.

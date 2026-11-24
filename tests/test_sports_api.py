@@ -114,19 +114,9 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     settings = Settings(database_url=database_url)
     app = create_app(settings)
 
-    async def validate_operator_token(token: str) -> bool:
-        return token == "operator-token"
-
-    app.state.sync_operator_token_validator = validate_operator_token
     with TestClient(app) as client:
-        no_token = client.get("/api/v1/ops/sync-runs")
-        bad_token = client.get("/api/v1/ops/sync-runs", headers={"Authorization": "Bearer invalid"})
-        sync_runs = client.get(
-            "/api/v1/ops/sync-runs", headers={"Authorization": "Bearer operator-token"}
-        )
-        freshness = client.get(
-            "/api/v1/ops/sync-freshness", headers={"Authorization": "Bearer operator-token"}
-        )
+        sync_runs = client.get("/api/v1/ops/sync-runs")
+        freshness = client.get("/api/v1/ops/sync-freshness")
         dashboard = client.get("/")
         sports = client.get("/api/v1/sports")
         competitions = client.get("/api/v1/competitions", params={"sport_id": sport_id})
@@ -178,8 +168,6 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             params={"as_of": "2025-12-31"},
         )
 
-    assert no_token.status_code == 401
-    assert bad_token.status_code == 403
     assert sync_runs.status_code == 200
     assert sync_runs.json()["total"] == 1
     assert sync_runs.json()["items"][0]["duration_seconds"] == 5.0
@@ -189,6 +177,9 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert dashboard.status_code == 200
     assert "League table" in dashboard.text
     assert "Team intelligence" in dashboard.text
+    assert "/ops/sync-freshness" in dashboard.text
+    assert "display refresh 30s" in dashboard.text
+    assert "Football-Data.org API" in dashboard.text
     assert sports.status_code == 200
     assert sports.json()[0]["code"] == "football"
     assert competitions.status_code == 200

@@ -1,11 +1,10 @@
 """Read-only, versioned sports API for catalog, fixtures, and analytics."""
 
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Security
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +33,6 @@ from chezaport.sports.services.analytics import (
 )
 
 router = APIRouter(tags=["sports"])
-_bearer = HTTPBearer(auto_error=False)
 
 
 async def _session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -44,22 +42,6 @@ async def _session(request: Request) -> AsyncIterator[AsyncSession]:
 
 
 SessionDep = Annotated[AsyncSession, Depends(_session)]
-
-
-async def _require_sync_operator(
-    request: Request,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
-) -> None:
-    """Delegate access-token and operator-role checks to the host identity layer."""
-    validator: Callable[[str], Awaitable[bool]] | None = getattr(
-        request.app.state, "sync_operator_token_validator", None
-    )
-    if validator is None:
-        raise HTTPException(status_code=503, detail="Operator authentication is not configured")
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Bearer access token required")
-    if not await validator(credentials.credentials):
-        raise HTTPException(status_code=403, detail="Operator access required")
 
 
 class SyncRunRead(BaseModel):
@@ -100,7 +82,6 @@ class SyncFreshnessRead(BaseModel):
 @router.get(
     "/ops/sync-runs",
     response_model=SyncRunPage,
-    dependencies=[Depends(_require_sync_operator)],
 )
 async def list_sync_runs(
     session: SessionDep,
@@ -114,7 +95,7 @@ async def list_sync_runs(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> SyncRunPage:
-    """List recent synchronization attempts for authenticated operators."""
+    """List recent sync attempts; contains read-only, non-secret operational metadata."""
     statement = select(SportsSyncRun)
     if provider:
         statement = statement.where(SportsSyncRun.provider == provider.strip().lower())
@@ -164,13 +145,12 @@ async def list_sync_runs(
 @router.get(
     "/ops/sync-freshness",
     response_model=list[SyncFreshnessRead],
-    dependencies=[Depends(_require_sync_operator)],
 )
 async def get_sync_freshness(
     session: SessionDep,
     stale_after_seconds: Annotated[int, Query(ge=60, le=604800)] = 86400,
 ) -> list[SyncFreshnessRead]:
-    """Summarize latest provider/resource attempts and flag stale data."""
+    """Summarize latest provider/resource attempts for the public data-status display."""
     rows = await session.scalars(
         select(SportsSyncRun).order_by(SportsSyncRun.started_at.desc(), SportsSyncRun.id.desc())
     )

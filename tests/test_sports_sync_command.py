@@ -19,7 +19,7 @@ from chezaport.sports.integrations.schemas import (
     ProviderTeam,
 )
 from chezaport.sports.models import Competition, Country, Fixture, Season, Sport, Team
-from chezaport.sports.sync import synchronize_competitions
+from chezaport.sports.sync import synchronize_competitions, synchronize_fixtures
 
 
 class StubFootballProvider:
@@ -163,3 +163,36 @@ async def test_manual_sync_rejects_unconfigured_competition(session_factory, reg
 
     with pytest.raises(ProviderConfigurationError):
         await synchronize_competitions(settings, session_factory, registry, ["PD"])
+
+
+@pytest.mark.asyncio
+async def test_fixture_refresh_only_updates_existing_competition(session_factory, registry):
+    settings = Settings(
+        football_data_api_token="test-token",
+        football_data_competition_codes=["PL"],
+    )
+    await synchronize_competitions(settings, session_factory, registry, ["PL"])
+
+    reports = await synchronize_fixtures(
+        settings,
+        session_factory,
+        registry,
+        ["PL"],
+        since=datetime(2025, 8, 1, tzinfo=UTC),
+    )
+
+    assert len(reports) == 1
+    assert reports[0].resource is ProviderResource.FIXTURES
+    assert reports[0].records_fetched == 1
+    async with session_factory() as session:
+        assert await session.scalar(select(func.count()).select_from(Fixture)) == 1
+
+
+@pytest.mark.asyncio
+async def test_fixture_refresh_requires_initial_full_sync(session_factory, registry):
+    settings = Settings(
+        football_data_api_token="test-token",
+        football_data_competition_codes=["PL"],
+    )
+    with pytest.raises(RuntimeError, match="run a full sync first"):
+        await synchronize_fixtures(settings, session_factory, registry, ["PL"])

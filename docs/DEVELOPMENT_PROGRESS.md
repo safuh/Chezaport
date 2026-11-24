@@ -13,7 +13,8 @@ football-first public API. It is not a frontend or mobile application.
   development.
 - External provider use requires verified competition coverage, quota, freshness,
   attribution, and data-use/redistribution rights.
-- Preserve existing authentication, health, database, and app-factory behavior.
+- Keep identity optional and dormant for v1; no visitor sign-in requirement.
+- Preserve health, database, and app-factory behavior.
 - Keep CI independent of provider credentials and live network calls.
 
 ## Current repository state
@@ -33,9 +34,9 @@ football-first public API. It is not a frontend or mobile application.
 | M1 | Application and API foundation | Complete |
 | M2 | Persistence, identity, migrations | Implemented; SQLite and PostgreSQL migrations verified |
 | M3 | Optional identity/JWT lifecycle | Implemented and tested |
-| M4 | Sports domain, ingestion, provider adapter, and manual sync orchestration | Implemented; live credentials and scheduled sync pending |
+| M4 | Sports domain, ingestion, provider adapter, manual and scheduled fixture sync | Implemented; provider credentials and live-plan verification pending |
 | M5 | Read API and deterministic analytics | Implemented and contract-tested |
-| M6 | Release verification | Local tests, package build, and dependency audit passed; latest GitHub CI/CodeQL run pending |
+| M6 | Release verification | Local tests and CI/security workflows passing; provider and staging gates remain |
 | M7 | Staging/production operations | Compose assets and container smoke passed; hosted infrastructure pending |
 
 ## Work completed in this development increment
@@ -139,12 +140,12 @@ football-first public API. It is not a frontend or mobile application.
 ## Provider decision gate
 
 The EPL (`PL`) / football-data.org technical pilot is the selected initial
-provider route. The read-only adapter, registry composition, and manual one-shot sync command
-are implemented. Local credentials, live feed verification, and an optional
-scheduled sync remain pending. The provider documents a 10 calls/minute free-plan
-limit and plan-dependent coverage. Attribution and data-use/redistribution
-rights must be confirmed before public production use. No token is stored in the
-repository or chat.
+provider route. The read-only adapter, registry composition, one-shot sync, and
+continuous fixture-refresh worker are implemented. Local credentials and live
+feed verification remain pending. The provider documents delayed scores on its
+free plan and plan-dependent live-score availability. Attribution and
+data-use/redistribution rights must be confirmed before public production use.
+No token is stored in the repository or chat.
 
 ## Remaining release gates
 
@@ -153,8 +154,8 @@ repository or chat.
 2. Confirm GitHub secret scanning and push protection are enabled for the repo.
 3. Configure the provider token locally and verify the EPL feed within the
    documented quota after confirming public-use terms.
-4. Add a scheduler only after freshness, quota, and provider terms are approved;
-   keep scheduled jobs idempotent and provider tokens out of CI.
+4. Configure the fixture-refresh worker only after freshness, quota, and provider
+   terms are approved; keep the job idempotent and provider tokens out of CI.
 5. Provision real staging infrastructure (host, dedicated PostgreSQL, domain,
    TLS/ingress, and protected secrets), deploy, and run smoke tests.
 6. Provision production infrastructure, encrypted backups, restore drills,
@@ -169,13 +170,12 @@ runtime configuration outside Git.
 - Added `sports_sync_runs` with provider/resource/competition scope, lifecycle status, UTC timestamps, fetched/seen/created/updated/unchanged/failed counters, and a bounded error summary.
 - Added indexes for recent-run and provider/resource freshness queries, plus database constraints for valid states, non-negative counters, and timestamp ordering.
 - The CLI sync path now supplies an independent audit session factory. Each attempt is committed as `running` before the provider call and finalized in a separate transaction, so a later ingestion rollback does not erase the failure record. Error summaries deliberately store exception type and a generic message rather than upstream exception text, which can contain request details.
-- The audit model is an internal operational record; no unauthenticated public endpoint exposes it. An authenticated operator view and freshness thresholds remain follow-up work.
+- The audit model records internal operational metadata. Read-only run-history and freshness views are public in v1; no public write/sync trigger or credential exposure is provided.
 
 
 ## Operator monitoring and reproducible demo data
 
-- Added `GET /api/v1/ops/sync-runs` with provider/resource/status filters and pagination, plus `GET /api/v1/ops/sync-freshness` with a caller-configurable stale threshold.
-- Both endpoints fail closed and use a database-backed JWT validator supplied through the `create_app(..., sync_operator_token_validator=...)` composition argument. The validator checks signature, expiry, access-token type, subject existence, and current persisted role; `operator` and `admin` are allowed, while `viewer` is denied. Role demotion takes effect immediately without waiting for token expiry.
+- Added `GET /api/v1/ops/sync-runs` with provider/resource/status filters and pagination, plus `GET /api/v1/ops/sync-freshness` with a caller-configurable stale threshold. These GET-only endpoints are public in v1 and return non-secret operational metadata so the dashboard needs no user sign-in.
 - Added `uv run python -m chezaport.sports.demo`: an idempotent, credential-free synthetic league with four fictional teams and six completed fixtures. Its display name explicitly labels the data fictional; the command never overwrites or deletes records.
 - Added tests for operator authorization, sync history/freshness responses, and demo dataset idempotency.
 
@@ -238,3 +238,14 @@ runtime configuration outside Git.
 - Ruff formatting/lint and mypy (58 source files) passed; source distribution and wheel built, and both passed Twine validation.
 - `make docker-test` passed on the dashboard increment: the image built, PostgreSQL became healthy, all seven Alembic revisions applied, `/` returned the dashboard, health/readiness checks passed, and the smoke stack/volume were removed.
 - GitHub CI and CodeQL both passed for dashboard commit `cef73c5`. The subsequent container-smoke and auth-composition commits still require their own GitHub workflow results after push.
+
+
+## Public first-release workflow and continuous data refresh (local increment)
+
+- Removed visitor authentication from the read-only synchronization history and freshness endpoints. The dashboard can display freshness without user accounts; no public write/sync trigger was added.
+- Added fixture-only synchronization for previously imported competitions. It performs one provider request per competition and records each attempt through the existing durable sync-run audit path.
+- Added `--fixtures-only`, `--watch`, and `--interval-seconds` modes to the sync CLI. Watch mode runs a full catalogue import once, then refreshes fixture records on a bounded interval (minimum 60 seconds; default 120 seconds).
+- Dashboard refreshes its database-backed view every 30 seconds and displays the last fixture sync time. Provider attribution is displayed when Football-Data.org is the active feed; synthetic demo data is labelled as synthetic.
+- Documented that v1 visitors do not sign in, provider credentials remain server-side, and the free provider tier has delayed scores. Live score availability is plan-dependent and must be confirmed with the provider before promising real-time results.
+- Added tests for fixture-only refresh, the requirement for an initial catalogue sync, public read-only freshness endpoints, and dashboard refresh/attribution behavior.
+- Verification: full local suite 147 passed, 2 skipped; Ruff format/lint and mypy passed; dashboard JavaScript syntax check passed. Container smoke and latest CI for this uncommitted increment remain to be run.
