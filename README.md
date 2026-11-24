@@ -1,9 +1,9 @@
 # Chezaport
 
-Chezaport is a backend-first football information platform built on
+Chezaport is a football information and analytics platform built on
 [FastApiBackbone](https://github.com/safuh/FastApiBackbone). The MVP is a modular
-monolith with a provider-neutral sports domain, ingestion boundary, public read
-API, and deterministic football analytics.
+monolith with a responsive same-origin web dashboard, provider-neutral sports
+domain, ingestion boundary, public read API, and deterministic football analytics.
 
 **Stack:** Python 3.11+ · FastAPI · Pydantic v2 · SQLAlchemy 2.x · Alembic ·
 SQLite (local) · PostgreSQL (staging/production) · Docker Compose.
@@ -18,11 +18,15 @@ SQLite (local) · PostgreSQL (staging/production) · Docker Compose.
   and head-to-head results, plus competition and team-season statistics and cross-season comparisons.
 - Optional Argon2/JWT identity composition with registration, login, refresh
   rotation, logout, refresh-token revocation, and least-privilege viewer/operator/admin roles.
+- Responsive first-party dashboard for competition selection, season standings,
+  fixtures/results, scoring summaries, and team performance/form.
 - Health/readiness endpoints, correlation IDs, structured logging, migrations,
   and container deployment assets.
 
-The MVP is API/backend only. It does not include a web/mobile frontend, AI
-features, Redis, message brokers, or microservices.
+The current web interface is a lightweight, same-origin HTML/CSS/JavaScript
+client served by FastAPI; it requires no separate Node build or external runtime
+CDN. It is not yet a full editorial CMS or native mobile application. AI
+features, Redis, message brokers, and microservices are intentionally out of scope.
 
 ## Quick start
 
@@ -35,9 +39,12 @@ cp .env.example .env
 make check
 make migrate-up
 uv run python -m chezaport.sports.seed
+# Optional: load clearly labelled fictional fixtures/results for a walkthrough.
+uv run python -m chezaport.sports.demo
 make run
 ```
 
+- Web dashboard: http://127.0.0.1:8000/
 - API discovery: http://127.0.0.1:8000/api/v1/
 - Swagger UI: http://127.0.0.1:8000/docs
 - Liveness: http://127.0.0.1:8000/api/health/live
@@ -45,6 +52,16 @@ make run
 
 SQLite is the default local database. Alembic migrations are required before
 using persistent data. The default sports seed is idempotent.
+
+## Web dashboard
+
+Open `http://127.0.0.1:8000/` after starting the API. The dashboard reads the
+same `/api/v1` endpoints documented below and includes competition/season
+selection, league standings, fixture/result filters, season scoring summaries,
+and team statistics with recent form. It is responsive and served from the
+same origin, so a separate frontend server or CORS configuration is not needed
+for the standard local setup. If the database has no competition records, load
+approved provider data or the explicitly fictional demo dataset above.
 
 ## Public API
 

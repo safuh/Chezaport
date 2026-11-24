@@ -78,3 +78,6 @@ ignore_missing_imports = true
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["chezaport*"]
+
+[tool.setuptools.package-data]
+"chezaport.web" = ["*.html"]

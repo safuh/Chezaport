@@ -127,6 +127,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
         freshness = client.get(
             "/api/v1/ops/sync-freshness", headers={"Authorization": "Bearer operator-token"}
         )
+        dashboard = client.get("/")
         sports = client.get("/api/v1/sports")
         competitions = client.get("/api/v1/competitions", params={"sport_id": sport_id})
         fixtures = client.get("/api/v1/fixtures", params={"competition_id": competition_id})
@@ -185,6 +186,9 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert freshness.status_code == 200
     assert freshness.json()[0]["provider"] == "demo-provider"
     assert freshness.json()[0]["is_stale"] is True
+    assert dashboard.status_code == 200
+    assert "League table" in dashboard.text
+    assert "Team intelligence" in dashboard.text
     assert sports.status_code == 200
     assert sports.json()[0]["code"] == "football"
     assert competitions.status_code == 200
@@ -214,6 +218,8 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert form.status_code == 200
     assert form.json()["form"][0]["outcome"] == "W"
     assert team_statistics.status_code == 200
+    assert team_statistics.json()["statistics"]["played"] == 1
+    assert team_statistics.json()["statistics"]["won"] == 1
     assert team_statistics.json()["statistics"]["goals_for"] == 2
     assert team_statistics.json()["statistics"]["clean_sheets"] == 1
     assert team_statistics.json()["statistics"]["home"]["win_rate"] == 100.0

@@ -213,3 +213,13 @@ runtime configuration outside Git.
 - Added a database-backed HTTP contract test covering administrator listing, credential-field exclusion, viewer denial, role promotion, immediate privilege revocation after demotion despite an unexpired access token, last-administrator protection, and invalid role rejection.
 - The API and validator are still deliberately composed by the host; the first administrator is provisioned through the trusted-shell role-management command rather than a public bootstrap endpoint.
 - Local integration test: 1 passed. Full quality gates are being rerun for this increment.
+
+
+## First-party sports dashboard
+
+- Added a responsive same-origin web dashboard served at `/`; no separate frontend build pipeline, Node runtime, or third-party CDN is required.
+- Competition and season selectors drive the existing public API. The dashboard renders league standings, all/upcoming/completed fixtures, competition scoring summaries, team season records, and recent form.
+- All dynamic labels and table values are inserted as text nodes rather than HTML, reducing DOM injection risk. The dashboard uses only public read endpoints; operator/admin credentials are not stored in browser code.
+- Added root-route tests and extended the sports API contract test to verify the dashboard is served alongside populated API data.
+- Configured setuptools package data and verified the HTML asset is present in both source distribution and wheel.
+- Local verification: Ruff, mypy (58 source files), 13 focused app/admin tests, package build, and Twine validation passed. Full suite and browser-level visual testing remain to be run.

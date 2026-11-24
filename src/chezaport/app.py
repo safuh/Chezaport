@@ -23,6 +23,7 @@ from .core.errors import (
 from .core.lifespan import lifespan
 from .core.logging import configure_logging
 from .core.middleware import RequestContextMiddleware
+from .web.routes import router as web_router
 
 AuthApplicationFactory = Callable[[AsyncSession], AuthenticationApplication]
 
@@ -77,4 +78,5 @@ def create_app(
     app.add_exception_handler(Exception, unhandled_error_handler)
 
     app.include_router(api_router, prefix=resolved.api_prefix)
+    app.include_router(web_router)
     return app

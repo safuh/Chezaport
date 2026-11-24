@@ -101,3 +101,23 @@ def test_admin_api_rejects_non_admin_token() -> None:
         )
 
     assert response.status_code == 403
+
+
+def test_dashboard_is_served_from_application_root() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Chezaport" in response.text
+    assert "League table" in response.text
+    assert "fixtures" in response.text
+
+
+def test_dashboard_is_same_origin_and_contains_no_external_runtime_dependencies() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert "fetch(API+path" in response.text
+    assert "https://cdn" not in response.text
+    assert "betting" not in response.text.lower()
