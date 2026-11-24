@@ -489,3 +489,74 @@ def test_fixture_reconciliation_preview_is_conservative_and_read_only(tmp_path) 
     assert candidate["severity"] == "review"
     assert "never" not in candidate["reason"].lower()
     assert second_response.json() == payload
+
+
+def test_provider_identity_overlap_preview_is_informational_and_read_only(tmp_path) -> None:
+    database_path = tmp_path / "provider-identity-overlap.db"
+    database_url = f"sqlite+aiosqlite:///{database_path}"
+
+    async def prepare_database() -> None:
+        engine = create_async_engine(database_url)
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            sport = Sport(code="football", name="Association football")
+            session.add(sport)
+            await session.flush()
+            competition = Competition(
+                sport_id=sport.id, name="Identity League", slug="identity-league"
+            )
+            team = Team(sport_id=sport.id, name="Identity FC", slug="identity-fc")
+            session.add_all([competition, team])
+            await session.flush()
+            session.add_all(
+                [
+                    ExternalIDMapping(
+                        provider="sample-provider",
+                        entity_type="competition",
+                        entity_id=competition.id,
+                        external_id="reused-42",
+                    ),
+                    ExternalIDMapping(
+                        provider="sample-provider",
+                        entity_type="team",
+                        entity_id=team.id,
+                        external_id="reused-42",
+                    ),
+                    # The same ID under another provider is a separate namespace.
+                    ExternalIDMapping(
+                        provider="another-provider",
+                        entity_type="team",
+                        entity_id=team.id,
+                        external_id="reused-42",
+                    ),
+                ]
+            )
+            await session.commit()
+        await engine.dispose()
+
+    asyncio.run(prepare_database())
+    app = create_app(Settings(database_url=database_url))
+    with TestClient(app) as client:
+        response = client.get("/api/v1/ops/reconciliation/provider-identities")
+        repeated = client.get("/api/v1/ops/reconciliation/provider-identities")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["read_only"] is True
+    assert payload["total"] == 1
+    assert len(payload["items"]) == 1
+    overlap = payload["items"][0]
+    assert overlap["provider"] == "sample-provider"
+    assert overlap["external_id"] == "reused-42"
+    assert {item["entity_type"] for item in overlap["mappings"]} == {
+        "competition",
+        "team",
+    }
+    assert overlap["severity"] == "informational"
+    assert overlap["requires_review"] is True
+    assert "may be valid" in overlap["interpretation"]
+    assert repeated.json() == payload

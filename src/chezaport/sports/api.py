@@ -1420,6 +1420,28 @@ class FixtureReconciliationPage(BaseModel):
     read_only: bool = True
 
 
+class ProviderIdentityMappingRead(BaseModel):
+    entity_type: str
+    entity_id: str
+
+
+class ProviderIdentityOverlapRead(BaseModel):
+    provider: str
+    external_id: str
+    mappings: list[ProviderIdentityMappingRead]
+    severity: str = "informational"
+    requires_review: bool = True
+    interpretation: str
+
+
+class ProviderIdentityOverlapPage(BaseModel):
+    items: list[ProviderIdentityOverlapRead]
+    total: int
+    limit: int
+    offset: int
+    read_only: bool = True
+
+
 @router.get(
     "/ops/reconciliation/fixtures",
     response_model=FixtureReconciliationPage,
@@ -1481,3 +1503,65 @@ async def preview_fixture_reconciliation(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/ops/reconciliation/provider-identities",
+    response_model=ProviderIdentityOverlapPage,
+)
+async def preview_provider_identity_overlaps(
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ProviderIdentityOverlapPage:
+    """List provider IDs reused across canonical entity types for review only.
+
+    The mapping key is intentionally scoped by provider and entity type, so
+    the same external ID on (for example) a team and a competition is not
+    inherently a conflict. This endpoint surfaces namespace overlaps without
+    assuming provider-wide ID uniqueness or changing any mapping.
+    """
+    grouped = (
+        select(ExternalIDMapping.provider, ExternalIDMapping.external_id)
+        .group_by(ExternalIDMapping.provider, ExternalIDMapping.external_id)
+        .having(func.count(func.distinct(ExternalIDMapping.entity_type)) > 1)
+    )
+    total = int(await session.scalar(select(func.count()).select_from(grouped.subquery())) or 0)
+    identities = (
+        await session.execute(
+            grouped.order_by(ExternalIDMapping.provider, ExternalIDMapping.external_id)
+            .offset(offset)
+            .limit(limit)
+        )
+    ).all()
+    items: list[ProviderIdentityOverlapRead] = []
+    for provider, external_id in identities:
+        mappings = (
+            await session.scalars(
+                select(ExternalIDMapping)
+                .where(
+                    ExternalIDMapping.provider == provider,
+                    ExternalIDMapping.external_id == external_id,
+                )
+                .order_by(ExternalIDMapping.entity_type, ExternalIDMapping.entity_id)
+            )
+        ).all()
+        items.append(
+            ProviderIdentityOverlapRead(
+                provider=provider,
+                external_id=external_id,
+                mappings=[
+                    ProviderIdentityMappingRead(
+                        entity_type=mapping.entity_type,
+                        entity_id=mapping.entity_id,
+                    )
+                    for mapping in mappings
+                ],
+                interpretation=(
+                    "The provider reuses this external ID across entity types. "
+                    "This may be valid type-scoped ID reuse; verify the provider's "
+                    "identifier namespace before treating it as a conflict."
+                ),
+            )
+        )
+    return ProviderIdentityOverlapPage(items=items, total=total, limit=limit, offset=offset)
