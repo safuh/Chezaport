@@ -21,5 +21,6 @@ done
 
 curl --fail --silent "${API_URL}/api/health/live"
 curl --fail --silent "${API_URL}/api/health/ready"
+curl --fail --silent "${API_URL}/" | grep --quiet "League table"
 "${COMPOSE[@]}" exec -T api alembic upgrade head
 "${COMPOSE[@]}" ps
