@@ -164,12 +164,42 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         )
         or 0
     )
+    competition_mapping = aliased(ExternalIDMapping)
+    fixture_mapping = aliased(ExternalIDMapping)
+    unmapped_provider_fixtures = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(Fixture)
+            .where(
+                select(1)
+                .select_from(competition_mapping)
+                .where(
+                    competition_mapping.entity_type == "competition",
+                    competition_mapping.entity_id == Fixture.competition_id,
+                    ~select(1)
+                    .select_from(fixture_mapping)
+                    .where(
+                        fixture_mapping.provider == competition_mapping.provider,
+                        fixture_mapping.entity_type == "fixture",
+                        fixture_mapping.entity_id == Fixture.id,
+                    )
+                    .exists(),
+                )
+                .exists()
+            )
+        )
+        or 0
+    )
     checks = [
         {"code": "finished_fixture_missing_score", "count": finished_missing_score},
         {"code": "fixture_partial_score", "count": partial_score},
         {"code": "fixture_season_competition_mismatch", "count": season_mismatch},
         {"code": "fixture_participant_sport_mismatch", "count": participant_sport_mismatch},
         {"code": "orphan_external_id_mapping", "count": orphan_mappings},
+        {
+            "code": "provider_fixture_missing_mapping",
+            "count": unmapped_provider_fixtures,
+        },
     ]
     total_issues = (
         finished_missing_score
@@ -177,6 +207,7 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         + season_mismatch
         + participant_sport_mismatch
         + orphan_mappings
+        + unmapped_provider_fixtures
     )
     return {
         "status": "healthy" if total_issues == 0 else "degraded",

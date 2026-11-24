@@ -316,13 +316,21 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
             away = Team(sport_id=basketball.id, name="Away BC", slug="away-bc")
             session.add_all([competition, season, home, away])
             await session.flush()
+            fixture = Fixture(
+                competition_id=competition.id,
+                season_id=season.id,
+                home_team_id=home.id,
+                away_team_id=away.id,
+                kickoff_at=datetime(2026, 8, 1, tzinfo=UTC),
+            )
+            session.add(fixture)
+            await session.flush()
             session.add(
-                Fixture(
-                    competition_id=competition.id,
-                    season_id=season.id,
-                    home_team_id=home.id,
-                    away_team_id=away.id,
-                    kickoff_at=datetime(2026, 8, 1, tzinfo=UTC),
+                ExternalIDMapping(
+                    provider="sample-provider",
+                    entity_type="competition",
+                    entity_id=competition.id,
+                    external_id="sample-league",
                 )
             )
             await session.commit()
@@ -338,4 +346,5 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
     assert payload["status"] == "degraded"
     checks = {item["code"]: item["count"] for item in payload["checks"]}
     assert checks["fixture_participant_sport_mismatch"] == 1
-    assert payload["total_issues"] == 1
+    assert checks["provider_fixture_missing_mapping"] == 1
+    assert payload["total_issues"] == 2
