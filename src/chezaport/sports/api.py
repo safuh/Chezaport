@@ -759,6 +759,88 @@ async def competition_statistics(
     }
 
 
+@router.get("/competitions/{competition_id}/matchdays")
+async def competition_matchdays(
+    competition_id: str,
+    session: SessionDep,
+    season_id: str,
+) -> dict[str, object]:
+    """Summarize each provider-supplied matchday/round without inventing events."""
+    await _validate_competition_season(session, competition_id, season_id)
+    home = aliased(Team)
+    away = aliased(Team)
+    result = await session.execute(
+        select(Fixture, home.name, away.name)
+        .join(home, Fixture.home_team_id == home.id)
+        .join(away, Fixture.away_team_id == away.id)
+        .where(
+            Fixture.competition_id == competition_id,
+            Fixture.season_id == season_id,
+        )
+        .order_by(Fixture.kickoff_at.asc(), Fixture.id.asc())
+    )
+    rounds: dict[str, list[tuple[Fixture, str, str]]] = {}
+    for fixture, home_name, away_name in result.all():
+        label = fixture.round_name or f"Unassigned · {fixture.kickoff_at.date().isoformat()}"
+        rounds.setdefault(label, []).append((fixture, home_name, away_name))
+
+    summaries: list[dict[str, object]] = []
+    for label, fixtures in rounds.items():
+        finished = [
+            row
+            for row in fixtures
+            if row[0].status == "finished"
+            and row[0].home_score is not None
+            and row[0].away_score is not None
+        ]
+
+        def scored_goals(row: tuple[Fixture, str, str]) -> int:
+            fixture = row[0]
+            assert fixture.home_score is not None and fixture.away_score is not None
+            return fixture.home_score + fixture.away_score
+
+        goals = sum(scored_goals(row) for row in finished)
+        highest = max(
+            finished,
+            key=lambda row: (scored_goals(row), -row[0].kickoff_at.timestamp()),
+            default=None,
+        )
+        summaries.append(
+            {
+                "name": label,
+                "kickoff_from": fixtures[0][0].kickoff_at,
+                "kickoff_to": fixtures[-1][0].kickoff_at,
+                "fixtures": len(fixtures),
+                "played": len(finished),
+                "scheduled": sum(row[0].status == "scheduled" for row in fixtures),
+                "live": sum(row[0].status in {"live", "halftime"} for row in fixtures),
+                "postponed": sum(row[0].status == "postponed" for row in fixtures),
+                "total_goals": goals,
+                "average_goals_per_played_match": round(goals / len(finished), 2)
+                if finished
+                else None,
+                "highest_scoring_fixture": (
+                    {
+                        "fixture_id": highest[0].id,
+                        "home_team": highest[1],
+                        "away_team": highest[2],
+                        "home_score": highest[0].home_score,
+                        "away_score": highest[0].away_score,
+                        "total_goals": scored_goals(highest),
+                    }
+                    if highest is not None
+                    else None
+                ),
+            }
+        )
+    return {
+        "competition_id": competition_id,
+        "season_id": season_id,
+        "total_matchdays": len(summaries),
+        "matchdays": summaries,
+    }
+
+
 @router.get("/competitions/{competition_id}/season-comparison")
 async def competition_season_comparison(
     competition_id: str, session: SessionDep

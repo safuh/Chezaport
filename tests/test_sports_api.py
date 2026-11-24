@@ -91,6 +91,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
                     status="finished",
                     home_score=2,
                     away_score=0,
+                    round_name="Matchday 1",
                 )
             )
             session.add(
@@ -128,6 +129,10 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             params={"season_id": season_id},
         )
         season_comparison = client.get(f"/api/v1/competitions/{competition_id}/season-comparison")
+        matchdays = client.get(
+            f"/api/v1/competitions/{competition_id}/matchdays",
+            params={"season_id": season_id},
+        )
         team_season_comparison = client.get(
             f"/api/v1/teams/{team_id}/season-comparison",
             params={"competition_id": competition_id},
@@ -204,6 +209,11 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert statistics.json()["statistics"]["average_goals_per_match"] == 2.0
     assert statistics.json()["statistics"]["home_wins"] == 1
     assert season_comparison.status_code == 200
+    assert matchdays.status_code == 200
+    assert matchdays.json()["total_matchdays"] == 1
+    assert matchdays.json()["matchdays"][0]["name"] == "Matchday 1"
+    assert matchdays.json()["matchdays"][0]["total_goals"] == 2
+    assert matchdays.json()["matchdays"][0]["highest_scoring_fixture"]["home_team"] == "Alpha FC"
     assert len(season_comparison.json()["seasons"]) == 1
     assert season_comparison.json()["seasons"][0]["leader"]["team_name"] == "Alpha FC"
     assert team_season_comparison.status_code == 200
