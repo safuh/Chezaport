@@ -53,6 +53,7 @@ async def _finished_fixtures(
     competition_id: str,
     season_id: str,
     team_ids: tuple[str, str] | None = None,
+    team_id: str | None = None,
 ) -> list[tuple[Fixture, str, str]]:
     """Fetch completed fixtures with both canonical team names."""
     home = aliased(Team)
@@ -70,11 +71,17 @@ async def _finished_fixtures(
         )
         .order_by(Fixture.kickoff_at.asc(), Fixture.id.asc())
     )
+    if team_ids is not None and team_id is not None:
+        raise ValueError("provide either a team pair or one team, not both")
     if team_ids is not None:
         first, second = team_ids
         statement = statement.where(
             ((Fixture.home_team_id == first) & (Fixture.away_team_id == second))
             | ((Fixture.home_team_id == second) & (Fixture.away_team_id == first))
+        )
+    elif team_id is not None:
+        statement = statement.where(
+            (Fixture.home_team_id == team_id) | (Fixture.away_team_id == team_id)
         )
     result = await session.execute(statement)
     return [(fixture, home_name, away_name) for fixture, home_name, away_name in result.all()]
@@ -255,7 +262,9 @@ async def calculate_team_season_statistics(
     session: AsyncSession, *, competition_id: str, season_id: str, team_id: str
 ) -> dict[str, object]:
     """Calculate a team's season record and home/away split from finished fixtures."""
-    fixtures = await _finished_fixtures(session, competition_id=competition_id, season_id=season_id)
+    fixtures = await _finished_fixtures(
+        session, competition_id=competition_id, season_id=season_id, team_id=team_id
+    )
     played = won = drawn = lost = goals_for = goals_against = clean_sheets = 0
     home_played = home_won = home_drawn = home_lost = home_goals_for = home_goals_against = 0
     away_played = away_won = away_drawn = away_lost = away_goals_for = away_goals_against = 0
@@ -353,7 +362,9 @@ async def calculate_team_form(
     limit: int = 5,
 ) -> list[dict[str, object]]:
     """Return a team's most recent completed results, newest first."""
-    fixtures = await _finished_fixtures(session, competition_id=competition_id, season_id=season_id)
+    fixtures = await _finished_fixtures(
+        session, competition_id=competition_id, season_id=season_id, team_id=team_id
+    )
     form: list[dict[str, object]] = []
     for fixture, home_name, away_name in reversed(fixtures):
         if team_id not in (fixture.home_team_id, fixture.away_team_id):
