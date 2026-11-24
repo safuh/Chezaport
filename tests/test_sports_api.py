@@ -188,6 +188,8 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert "display refresh 30s" in dashboard.text
     assert "Football-Data.org API" in dashboard.text
     assert "Match centre" in dashboard.text
+    assert "/matchdays" in dashboard.text
+    assert "Matchday summaries" in dashboard.text
     assert "loadFixture" in dashboard.text
     assert "getAllFixtures" in dashboard.text
     assert "Latest " in dashboard.text
