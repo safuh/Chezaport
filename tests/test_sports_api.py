@@ -402,3 +402,90 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
     assert issues.json()["total"] == 5
     assert len(issues.json()["items"]) == 2
     assert issues.json()["offset"] == 0
+
+
+def test_fixture_reconciliation_preview_is_conservative_and_read_only(tmp_path) -> None:
+    database_path = tmp_path / "fixture-reconciliation.db"
+    database_url = f"sqlite+aiosqlite:///{database_path}"
+
+    async def prepare_database() -> None:
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        engine = create_async_engine(database_url)
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            sport = Sport(code="football", name="Association football")
+            session.add(sport)
+            await session.flush()
+            competition = Competition(
+                sport_id=sport.id, name="Reconciliation League", slug="reconciliation-league"
+            )
+            session.add(competition)
+            await session.flush()
+            season = Season(competition_id=competition.id, name="2026")
+            home = Team(sport_id=sport.id, name="Home", slug="home")
+            away = Team(sport_id=sport.id, name="Away", slug="away")
+            other = Team(sport_id=sport.id, name="Other", slug="other")
+            session.add_all([season, home, away, other])
+            await session.flush()
+            kickoff = datetime(2026, 8, 1, 15, tzinfo=UTC)
+            session.add_all(
+                [
+                    Fixture(
+                        competition_id=competition.id,
+                        season_id=season.id,
+                        home_team_id=home.id,
+                        away_team_id=away.id,
+                        kickoff_at=kickoff,
+                        status="scheduled",
+                    ),
+                    Fixture(
+                        competition_id=competition.id,
+                        season_id=season.id,
+                        home_team_id=home.id,
+                        away_team_id=away.id,
+                        kickoff_at=kickoff + timedelta(minutes=5),
+                        status="scheduled",
+                    ),
+                    # Same teams but outside the tolerance: not a candidate.
+                    Fixture(
+                        competition_id=competition.id,
+                        season_id=season.id,
+                        home_team_id=home.id,
+                        away_team_id=away.id,
+                        kickoff_at=kickoff + timedelta(hours=3),
+                        status="scheduled",
+                    ),
+                    # Similar time but different participants: not a candidate.
+                    Fixture(
+                        competition_id=competition.id,
+                        season_id=season.id,
+                        home_team_id=home.id,
+                        away_team_id=other.id,
+                        kickoff_at=kickoff,
+                        status="scheduled",
+                    ),
+                ]
+            )
+            await session.commit()
+        await engine.dispose()
+
+    asyncio.run(prepare_database())
+    app = create_app(Settings(database_url=database_url))
+    with TestClient(app) as client:
+        response = client.get("/api/v1/ops/reconciliation/fixtures")
+        second_response = client.get("/api/v1/ops/reconciliation/fixtures")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["read_only"] is True
+    assert payload["total"] == 1
+    assert len(payload["items"]) == 1
+    candidate = payload["items"][0]
+    assert candidate["kickoff_difference_seconds"] == 300
+    assert candidate["requires_review"] is True
+    assert candidate["severity"] == "review"
+    assert "never" not in candidate["reason"].lower()
+    assert second_response.json() == payload

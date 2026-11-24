@@ -1,7 +1,7 @@
 """Read-only, versioned sports API for catalog, fixtures, and analytics."""
 
 from collections.abc import AsyncIterator
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1391,3 +1391,93 @@ async def team_head_to_head(
         team_b_id=team_b_id,
     )
     return summary
+
+
+class FixtureReconciliationCandidate(BaseModel):
+    """Read-only evidence that two canonical fixtures may represent one event."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    left_fixture_id: str
+    right_fixture_id: str
+    competition_id: str
+    season_id: str
+    home_team_id: str
+    away_team_id: str
+    left_kickoff_at: datetime
+    right_kickoff_at: datetime
+    kickoff_difference_seconds: int
+    severity: str
+    requires_review: bool = True
+    reason: str
+
+
+class FixtureReconciliationPage(BaseModel):
+    items: list[FixtureReconciliationCandidate]
+    total: int
+    limit: int
+    offset: int
+    read_only: bool = True
+
+
+@router.get(
+    "/ops/reconciliation/fixtures",
+    response_model=FixtureReconciliationPage,
+)
+async def preview_fixture_reconciliation(
+    session: SessionDep,
+    tolerance_minutes: Annotated[int, Query(ge=1, le=180)] = 15,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> FixtureReconciliationPage:
+    """Preview likely duplicate fixtures; never changes or merges records.
+
+    Candidates require identical competition, season, home/away participants,
+    and kick-off times within the requested tolerance. This conservative match
+    intentionally misses reversed fixtures and cross-competition reschedules.
+    """
+    left = aliased(Fixture)
+    right = aliased(Fixture)
+    tolerance = timedelta(minutes=tolerance_minutes)
+    matches = await session.execute(
+        select(left, right)
+        .where(
+            left.id < right.id,
+            left.competition_id == right.competition_id,
+            left.season_id == right.season_id,
+            left.home_team_id == right.home_team_id,
+            left.away_team_id == right.away_team_id,
+        )
+        .order_by(left.kickoff_at, left.id, right.id)
+    )
+    candidates: list[FixtureReconciliationCandidate] = []
+    for first, second in matches.all():
+        difference = abs((second.kickoff_at - first.kickoff_at).total_seconds())
+        if difference > tolerance.total_seconds():
+            continue
+        candidates.append(
+            FixtureReconciliationCandidate(
+                left_fixture_id=first.id,
+                right_fixture_id=second.id,
+                competition_id=first.competition_id,
+                season_id=first.season_id,
+                home_team_id=first.home_team_id,
+                away_team_id=first.away_team_id,
+                left_kickoff_at=first.kickoff_at,
+                right_kickoff_at=second.kickoff_at,
+                kickoff_difference_seconds=int(difference),
+                severity="high" if difference <= 60 else "review",
+                reason=(
+                    "Same competition, season, home team and away team; kick-off "
+                    f"times differ by {int(difference)} seconds. Verify provider "
+                    "identities and match history before any manual reconciliation."
+                ),
+            )
+        )
+    total = len(candidates)
+    return FixtureReconciliationPage(
+        items=candidates[offset : offset + limit],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
