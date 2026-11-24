@@ -223,3 +223,18 @@ runtime configuration outside Git.
 - Added root-route tests and extended the sports API contract test to verify the dashboard is served alongside populated API data. The Docker smoke test now also fetches the dashboard from the built container.
 - Configured setuptools package data and verified the HTML asset is present in both source distribution and wheel.
 - Local verification: Ruff, mypy (58 source files), 13 focused app/admin tests, package build, and Twine validation passed. Full suite and browser-level visual testing remain to be run.
+
+
+## Environment-driven identity composition
+
+- Added optional `JWT_SECRET_KEY` configuration (minimum 32 characters) and bounded access/refresh token lifetime settings. No key is generated or committed.
+- When configured, the application factory composes the standard SQLAlchemy registration/login/refresh/logout application; lifespan binds database-backed operator and administrator validators to the shared session factory. Explicit host-injected factories/validators continue to take precedence.
+- Documented the local owner bootstrap: register a normal viewer, promote it through the trusted-shell role command, then authenticate. No public role escalation or default admin is introduced.
+- Added an integration test proving a newly registered viewer is denied admin access, then the same still-valid access token gains current persisted admin/operator permissions only after a trusted database role change.
+
+## Latest verification update
+
+- Full local suite after the dashboard, container smoke, and environment-driven authentication changes: 145 passed, 2 skipped, 2 upstream deprecation warnings.
+- Ruff formatting/lint and mypy (58 source files) passed; source distribution and wheel built, and both passed Twine validation.
+- `make docker-test` passed on the dashboard increment: the image built, PostgreSQL became healthy, all seven Alembic revisions applied, `/` returned the dashboard, health/readiness checks passed, and the smoke stack/volume were removed.
+- GitHub CI and CodeQL both passed for dashboard commit `cef73c5`. The subsequent container-smoke and auth-composition commits still require their own GitHub workflow results after push.

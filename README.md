@@ -96,15 +96,28 @@ Fixture timestamps must be timezone-aware at ingestion boundaries.
 
 ## Authentication
 
-Authentication is optional and must be explicitly composed by the consuming
-application. The API returns 503 for auth endpoints until an
-`AuthenticationApplication` factory is supplied. New registrations receive the
+Authentication remains optional. Set `JWT_SECRET_KEY` to a randomly generated
+secret of at least 32 characters to enable the built-in SQLAlchemy registration,
+login, refresh, logout, administrator, and operator authorization composition.
+`ACCESS_TOKEN_MINUTES` and `REFRESH_TOKEN_DAYS` control token lifetimes. Without
+a secret, authentication and privileged endpoints fail closed unless the host
+explicitly injects its own composition. New registrations always receive the
 least-privileged `viewer` role. `operator` and `admin` can access sync operations;
 role checks consult the current database value on every request, so demotion is
 immediate even while an access JWT remains valid.
 
-The host must explicitly supply the database-backed operator validator when
-creating the app; no secret or privileged default account is generated:
+The secret is read from protected runtime configuration; no secret or privileged
+default account is generated. For a local owner bootstrap after migrations:
+
+1. Set `JWT_SECRET_KEY` in your ignored local `.env` file.
+2. Register the intended owner through `POST /api/auth/register`.
+3. Promote that account from the trusted project shell:
+   `uv run python -m chezaport.identity.manage_roles --identifier owner@example.test --role admin`.
+4. Sign in through `POST /api/auth/login`; use the returned access token for
+   administrator and operator APIs. Assign `operator` only to trusted staff.
+
+For hosts that need custom identity persistence or secret management, explicit
+factory and validator injection remains supported:
 
 ```python
 from chezaport.app import create_app

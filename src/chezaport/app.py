@@ -1,6 +1,7 @@
 """Application factory and composition root."""
 
 from collections.abc import Awaitable, Callable
+from datetime import timedelta
 from typing import cast
 
 from fastapi import FastAPI
@@ -23,6 +24,7 @@ from .core.errors import (
 from .core.lifespan import lifespan
 from .core.logging import configure_logging
 from .core.middleware import RequestContextMiddleware
+from .identity.composition import create_sqlalchemy_auth_application
 from .web.routes import router as web_router
 
 AuthApplicationFactory = Callable[[AsyncSession], AuthenticationApplication]
@@ -49,7 +51,16 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = resolved
-    app.state.auth_application_factory = auth_application_factory
+    if auth_application_factory is None and resolved.jwt_secret_key is not None:
+        secret_key = resolved.jwt_secret_key
+        app.state.auth_application_factory = lambda session: create_sqlalchemy_auth_application(
+            session,
+            secret_key=secret_key,
+            access_token_lifetime=timedelta(minutes=resolved.access_token_minutes),
+            refresh_token_lifetime=timedelta(days=resolved.refresh_token_days),
+        )
+    else:
+        app.state.auth_application_factory = auth_application_factory
     app.state.sync_operator_token_validator = sync_operator_token_validator
     app.state.admin_token_validator = admin_token_validator
 

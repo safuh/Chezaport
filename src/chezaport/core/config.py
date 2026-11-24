@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_json: bool = False
     cors_origins: list[str] = Field(default_factory=list)
+    jwt_secret_key: str | None = Field(default=None, min_length=32)
+    access_token_minutes: int = Field(default=15, ge=1, le=1440)
+    refresh_token_days: int = Field(default=30, ge=1, le=365)
     football_data_api_token: str | None = None
     football_data_competition_codes: list[str] = Field(default_factory=lambda: ["PL"])
     cors_allow_credentials: bool = False

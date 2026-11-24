@@ -6,6 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
+from chezaport.identity.authorization import (
+    create_admin_token_validator,
+    create_sync_operator_token_validator,
+)
+
 from .config import Settings
 from .database import create_engine, create_session_factory
 
@@ -18,6 +23,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     session_factory = create_session_factory(engine)
     app.state.db_engine = engine
     app.state.db_session_factory = session_factory
+    if settings.jwt_secret_key is not None:
+        if app.state.sync_operator_token_validator is None:
+            app.state.sync_operator_token_validator = create_sync_operator_token_validator(
+                session_factory, secret_key=settings.jwt_secret_key
+            )
+        if app.state.admin_token_validator is None:
+            app.state.admin_token_validator = create_admin_token_validator(
+                session_factory, secret_key=settings.jwt_secret_key
+            )
     app.state.startup_complete = False
 
     try:
