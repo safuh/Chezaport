@@ -210,6 +210,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     quality_checks = {item["code"]: item["count"] for item in data_quality.json()["checks"]}
     assert quality_checks["finished_fixture_missing_score"] == 1
     assert quality_checks["orphan_external_id_mapping"] == 1
+    assert "Provider mappings with missing canonical records" in dashboard.text
     assert dashboard.status_code == 200
     assert "League table" in dashboard.text
     assert "Team intelligence" in dashboard.text
