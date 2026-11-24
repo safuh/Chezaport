@@ -165,6 +165,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
         sync_runs = client.get("/api/v1/ops/sync-runs")
         freshness = client.get("/api/v1/ops/sync-freshness")
         data_quality = client.get("/api/v1/ops/data-quality")
+        quality_issues = client.get("/api/v1/ops/data-quality/issues", params={"limit": 10})
         dashboard = client.get("/")
         sports = client.get("/api/v1/sports")
         competitions = client.get("/api/v1/competitions", params={"sport_id": sport_id})
@@ -236,6 +237,15 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert quality_checks["finished_fixture_missing_score"] == 1
     assert quality_checks["fixture_past_kickoff_still_scheduled"] == 1
     assert quality_checks["orphan_external_id_mapping"] == 1
+    assert quality_issues.status_code == 200
+    assert quality_issues.json()["total"] == 3
+    issue_codes = {item["code"] for item in quality_issues.json()["items"]}
+    assert issue_codes == {
+        "finished_fixture_missing_score",
+        "fixture_past_kickoff_still_scheduled",
+        "orphan_external_id_mapping",
+    }
+    assert "View affected records" in dashboard.text
     assert "Provider mappings with missing canonical records" in dashboard.text
     assert "Past kick-off fixtures still marked scheduled" in dashboard.text
     assert dashboard.status_code == 200
@@ -377,6 +387,7 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
     app = create_app(Settings(database_url=database_url))
     with TestClient(app) as client:
         response = client.get("/api/v1/ops/data-quality")
+    issues = client.get("/api/v1/ops/data-quality/issues", params={"limit": 2})
 
     assert response.status_code == 200
     payload = response.json()
@@ -387,3 +398,7 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
     assert checks["provider_team_missing_mapping"] == 2
     assert checks["provider_season_missing_mapping"] == 1
     assert payload["total_issues"] == 5
+    assert issues.status_code == 200
+    assert issues.json()["total"] == 5
+    assert len(issues.json()["items"]) == 2
+    assert issues.json()["offset"] == 0

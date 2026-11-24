@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -285,6 +285,225 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         "checks": checks,
         "generated_at": datetime.now(UTC),
         "scope": "canonical database integrity checks; not source verification",
+    }
+
+
+@router.get("/ops/data-quality/issues")
+async def list_data_quality_issues(
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict[str, object]:
+    """Return paginated, actionable references for detected integrity issues."""
+    report = await get_data_quality(session)
+    page_size = limit + offset
+    found: list[dict[str, str | None]] = []
+
+    async def collect(
+        statement: Any,
+        code: str,
+        entity_type: str,
+        description: str,
+    ) -> None:
+        rows = (await session.execute(statement.limit(page_size))).mappings().all()
+        found.extend(
+            {
+                "code": code,
+                "entity_type": entity_type,
+                "entity_id": str(row["entity_id"]),
+                "provider": row.get("provider"),
+                "description": description,
+            }
+            for row in rows
+        )
+
+    home_team = aliased(Team)
+    away_team = aliased(Team)
+    await collect(
+        select(Fixture.id.label("entity_id"), literal(None).label("provider"))
+        .where(
+            Fixture.status == "finished",
+            or_(Fixture.home_score.is_(None), Fixture.away_score.is_(None)),
+        )
+        .order_by(Fixture.id),
+        "finished_fixture_missing_score",
+        "fixture",
+        "Fixture is finished but one or both scores are missing.",
+    )
+    await collect(
+        select(Fixture.id.label("entity_id"), literal(None).label("provider"))
+        .where(
+            or_(
+                (Fixture.home_score.is_(None) & Fixture.away_score.is_not(None)),
+                (Fixture.home_score.is_not(None) & Fixture.away_score.is_(None)),
+            )
+        )
+        .order_by(Fixture.id),
+        "fixture_partial_score",
+        "fixture",
+        "Only one side of the fixture score is populated.",
+    )
+    await collect(
+        select(Fixture.id.label("entity_id"), literal(None).label("provider"))
+        .where(
+            Fixture.status == "scheduled",
+            Fixture.kickoff_at < datetime.now(UTC),
+        )
+        .order_by(Fixture.id),
+        "fixture_past_kickoff_still_scheduled",
+        "fixture",
+        "Kick-off time has passed but the fixture is still marked scheduled.",
+    )
+    await collect(
+        select(Fixture.id.label("entity_id"), literal(None).label("provider"))
+        .join(Season, Fixture.season_id == Season.id)
+        .where(Fixture.competition_id != Season.competition_id)
+        .order_by(Fixture.id),
+        "fixture_season_competition_mismatch",
+        "fixture",
+        "Fixture competition does not match its season competition.",
+    )
+    await collect(
+        select(Fixture.id.label("entity_id"), literal(None).label("provider"))
+        .join(Competition, Fixture.competition_id == Competition.id)
+        .join(home_team, Fixture.home_team_id == home_team.id)
+        .join(away_team, Fixture.away_team_id == away_team.id)
+        .where(
+            or_(
+                home_team.sport_id != Competition.sport_id,
+                away_team.sport_id != Competition.sport_id,
+            )
+        )
+        .order_by(Fixture.id),
+        "fixture_participant_sport_mismatch",
+        "fixture",
+        "A participating team belongs to a different sport from the competition.",
+    )
+
+    mapping_targets: dict[str, Any] = {
+        "sport": Sport,
+        "country": Country,
+        "venue": Venue,
+        "competition": Competition,
+        "season": Season,
+        "team": Team,
+        "player": Player,
+        "fixture": Fixture,
+    }
+    for entity_type, model in mapping_targets.items():
+        await collect(
+            select(
+                ExternalIDMapping.entity_id.label("entity_id"),
+                ExternalIDMapping.provider.label("provider"),
+            )
+            .where(
+                ExternalIDMapping.entity_type == entity_type,
+                ~select(model.id).where(model.id == ExternalIDMapping.entity_id).exists(),
+            )
+            .order_by(ExternalIDMapping.entity_id, ExternalIDMapping.provider),
+            "orphan_external_id_mapping",
+            entity_type,
+            "Provider mapping points to a canonical record that no longer exists.",
+        )
+
+    competition_mapping = aliased(ExternalIDMapping)
+    fixture_mapping = aliased(ExternalIDMapping)
+    missing_fixture_mapping = (
+        select(
+            Fixture.id.label("entity_id"),
+            competition_mapping.provider.label("provider"),
+        )
+        .join(competition_mapping, competition_mapping.entity_type == "competition")
+        .where(
+            competition_mapping.entity_id == Fixture.competition_id,
+            ~select(1)
+            .select_from(fixture_mapping)
+            .where(
+                fixture_mapping.provider == competition_mapping.provider,
+                fixture_mapping.entity_type == "fixture",
+                fixture_mapping.entity_id == Fixture.id,
+            )
+            .exists(),
+        )
+        .order_by(Fixture.id, competition_mapping.provider)
+    )
+    await collect(
+        missing_fixture_mapping,
+        "provider_fixture_missing_mapping",
+        "fixture",
+        "Fixture belongs to a provider-backed competition but has no mapping for that provider.",
+    )
+
+    expected_team_mappings = (
+        select(competition_mapping.provider.label("provider"), Team.id.label("entity_id"))
+        .select_from(competition_mapping)
+        .join(Competition, Competition.id == competition_mapping.entity_id)
+        .join(Fixture, Fixture.competition_id == Competition.id)
+        .join(Team, or_(Team.id == Fixture.home_team_id, Team.id == Fixture.away_team_id))
+        .where(competition_mapping.entity_type == "competition")
+        .distinct()
+        .subquery()
+    )
+    await collect(
+        select(
+            expected_team_mappings.c.entity_id,
+            expected_team_mappings.c.provider,
+        )
+        .where(
+            ~select(1)
+            .select_from(ExternalIDMapping)
+            .where(
+                ExternalIDMapping.provider == expected_team_mappings.c.provider,
+                ExternalIDMapping.entity_type == "team",
+                ExternalIDMapping.entity_id == expected_team_mappings.c.entity_id,
+            )
+            .exists()
+        )
+        .order_by(expected_team_mappings.c.entity_id, expected_team_mappings.c.provider),
+        "provider_team_missing_mapping",
+        "team",
+        "Team participates in a provider-backed competition but has no mapping for that provider.",
+    )
+
+    expected_season_mappings = (
+        select(competition_mapping.provider.label("provider"), Season.id.label("entity_id"))
+        .select_from(competition_mapping)
+        .join(Competition, Competition.id == competition_mapping.entity_id)
+        .join(Season, Season.competition_id == Competition.id)
+        .where(competition_mapping.entity_type == "competition")
+        .distinct()
+        .subquery()
+    )
+    await collect(
+        select(
+            expected_season_mappings.c.entity_id,
+            expected_season_mappings.c.provider,
+        )
+        .where(
+            ~select(1)
+            .select_from(ExternalIDMapping)
+            .where(
+                ExternalIDMapping.provider == expected_season_mappings.c.provider,
+                ExternalIDMapping.entity_type == "season",
+                ExternalIDMapping.entity_id == expected_season_mappings.c.entity_id,
+            )
+            .exists()
+        )
+        .order_by(expected_season_mappings.c.entity_id, expected_season_mappings.c.provider),
+        "provider_season_missing_mapping",
+        "season",
+        "Season belongs to a provider-backed competition but has no mapping for that provider.",
+    )
+
+    found.sort(
+        key=lambda item: (item["code"] or "", item["entity_id"] or "", item["provider"] or "")
+    )
+    total_issues = report.get("total_issues", 0)
+    return {
+        "items": found[offset : offset + limit],
+        "total": total_issues if isinstance(total_issues, int) else 0,
+        "limit": limit,
+        "offset": offset,
     }
 
 
