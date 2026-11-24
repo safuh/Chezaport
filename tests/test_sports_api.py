@@ -12,6 +12,7 @@ from chezaport.core.database import Base
 from chezaport.sports.models import (
     Competition,
     Country,
+    ExternalIDMapping,
     Fixture,
     Player,
     Season,
@@ -108,6 +109,14 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
                 )
             )
             session.add(
+                ExternalIDMapping(
+                    provider="sample-provider",
+                    entity_type="player",
+                    entity_id="missing-canonical-player",
+                    external_id="provider-player-404",
+                )
+            )
+            session.add(
                 SportsSyncRun(
                     provider="demo-provider",
                     resource="fixtures",
@@ -197,9 +206,10 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert freshness.json()[0]["is_stale"] is True
     assert data_quality.status_code == 200
     assert data_quality.json()["status"] == "degraded"
-    assert data_quality.json()["total_issues"] == 1
+    assert data_quality.json()["total_issues"] == 2
     quality_checks = {item["code"]: item["count"] for item in data_quality.json()["checks"]}
     assert quality_checks["finished_fixture_missing_score"] == 1
+    assert quality_checks["orphan_external_id_mapping"] == 1
     assert dashboard.status_code == 200
     assert "League table" in dashboard.text
     assert "Team intelligence" in dashboard.text

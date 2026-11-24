@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
@@ -13,6 +13,7 @@ from sqlalchemy.orm import aliased
 from chezaport.sports.models import (
     Competition,
     Country,
+    ExternalIDMapping,
     Fixture,
     Player,
     Season,
@@ -87,6 +88,31 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
     personal data. A clean result means these checks found no anomalies; it is
     not a claim that every source record has been independently verified.
     """
+    mapping_targets: dict[str, Any] = {
+        "sport": Sport,
+        "country": Country,
+        "venue": Venue,
+        "competition": Competition,
+        "season": Season,
+        "team": Team,
+        "player": Player,
+        "fixture": Fixture,
+    }
+    orphan_mapping_conditions = [
+        (
+            (ExternalIDMapping.entity_type == entity_type)
+            & ~select(model.id).where(model.id == ExternalIDMapping.entity_id).exists()
+        )
+        for entity_type, model in mapping_targets.items()
+    ]
+    orphan_mappings = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(ExternalIDMapping)
+            .where(or_(*orphan_mapping_conditions))
+        )
+        or 0
+    )
     finished_missing_score = int(
         await session.scalar(
             select(func.count())
@@ -124,8 +150,9 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
         {"code": "finished_fixture_missing_score", "count": finished_missing_score},
         {"code": "fixture_partial_score", "count": partial_score},
         {"code": "fixture_season_competition_mismatch", "count": season_mismatch},
+        {"code": "orphan_external_id_mapping", "count": orphan_mappings},
     ]
-    total_issues = finished_missing_score + partial_score + season_mismatch
+    total_issues = finished_missing_score + partial_score + season_mismatch + orphan_mappings
     return {
         "status": "healthy" if total_issues == 0 else "degraded",
         "total_issues": total_issues,
