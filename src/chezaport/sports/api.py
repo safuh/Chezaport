@@ -29,6 +29,7 @@ from chezaport.sports.services.analytics import (
     calculate_head_to_head,
     calculate_standings,
     calculate_team_form,
+    calculate_team_season_comparison,
     calculate_team_season_statistics,
 )
 
@@ -786,6 +787,21 @@ async def team_season_statistics(
         "season_id": season_id,
         "statistics": statistics,
     }
+
+
+@router.get("/teams/{team_id}/season-comparison")
+async def team_season_comparison(
+    team_id: str, session: SessionDep, competition_id: str
+) -> dict[str, object]:
+    """Compare a team's performance and league position across seasons."""
+    if await session.get(Competition, competition_id) is None:
+        raise HTTPException(status_code=404, detail="Competition not found")
+    if await session.get(Team, team_id) is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+    seasons = await calculate_team_season_comparison(
+        session, competition_id=competition_id, team_id=team_id
+    )
+    return {"team_id": team_id, "competition_id": competition_id, "seasons": seasons}
 
 
 @router.get("/teams/{team_id}/form")

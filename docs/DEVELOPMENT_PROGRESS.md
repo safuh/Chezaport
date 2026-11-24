@@ -189,3 +189,11 @@ runtime configuration outside Git.
 - Migration uses Alembic batch operations so SQLite and PostgreSQL can both apply the role constraint.
 - Verification: Ruff lint/format, mypy, and pytest passed: 134 passed, 2 skipped, 2 upstream deprecation warnings. The initial migration test caught SQLite's lack of direct `ALTER CHECK CONSTRAINT`; the migration was corrected to use batch mode and the full suite passed afterwards.
 - This increment is local and has not yet been committed or pushed.
+
+
+## Team cross-season comparison
+
+- Added `GET /api/v1/teams/{team_id}/season-comparison?competition_id=...`.
+- Returns each season in chronological order where the team recorded at least one completed fixture, including final table position, points, and full overall/home/away performance statistics. Seasons with no team results are omitted rather than represented as zero-performance seasons.
+- Validates both competition and team identifiers and returns stable 404 responses for unknown resources.
+- Added HTTP contract coverage for the comparison endpoint.

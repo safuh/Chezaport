@@ -421,3 +421,37 @@ async def calculate_head_to_head(
         "team_b_goals": team_b_goals,
         "meetings": meetings,
     }
+
+
+async def calculate_team_season_comparison(
+    session: AsyncSession, *, competition_id: str, team_id: str
+) -> list[dict[str, object]]:
+    """Compare one team's completed-season record across a competition's seasons."""
+    seasons_result = await session.execute(
+        select(Season)
+        .where(Season.competition_id == competition_id)
+        .order_by(Season.start_date.asc(), Season.name.asc(), Season.id.asc())
+    )
+    comparisons: list[dict[str, object]] = []
+    for season in seasons_result.scalars().all():
+        statistics = await calculate_team_season_statistics(
+            session, competition_id=competition_id, season_id=season.id, team_id=team_id
+        )
+        if not statistics["played"]:
+            continue
+        standings = await calculate_standings(
+            session, competition_id=competition_id, season_id=season.id
+        )
+        table_row = next((row for row in standings if row["team_id"] == team_id), None)
+        comparisons.append(
+            {
+                "season_id": season.id,
+                "season_name": season.name,
+                "start_date": season.start_date,
+                "end_date": season.end_date,
+                "position": table_row["position"] if table_row else None,
+                "points": table_row["points"] if table_row else None,
+                "statistics": statistics,
+            }
+        )
+    return comparisons
