@@ -69,6 +69,8 @@ All product endpoints are under `/api/v1`.
 | GET | `/competitions/{competition_id}/standings?season_id=...` | 3-1-0 league table |
 | GET | `/teams/{team_id}/form?competition_id=...&season_id=...` | Recent completed results |
 | GET | `/teams/head-to-head?... ` | Completed meetings between two teams |
+| GET | `/admin/users` | Admin-only, paginated user directory (no credential material) |
+| PATCH | `/admin/users/{user_id}/role` | Admin-only role changes with last-admin protection |
 
 Standings use points, goal difference, goals scored, then team name as tie-break
 order. Only finished fixtures with both scores are counted. Squad membership is evaluated as of the requested date (or the current server
@@ -90,6 +92,7 @@ creating the app; no secret or privileged default account is generated:
 ```python
 from chezaport.app import create_app
 from chezaport.identity import (
+    create_admin_token_validator,
     create_sqlalchemy_auth_application,
     create_sync_operator_token_validator,
 )
@@ -105,13 +108,20 @@ app = create_app(
     sync_operator_token_validator=create_sync_operator_token_validator(
         session_factory, secret_key=JWT_SECRET
     ),
+    admin_token_validator=create_admin_token_validator(session_factory, secret_key=JWT_SECRET),
 )
 ```
 
 The validator verifies signature, expiry, and access-token type, then reloads the
 subject's persisted role. Unknown, deleted, expired, refresh, or malformed tokens
-are denied. Newly registered accounts are never operators by default. See
-[security guidance](docs/SECURITY.md).
+are denied. Newly registered accounts are never operators or administrators by default. The
+administrator validator is a separate host-injected callback and checks the
+current persisted `admin` role on every request. It protects `GET
+/api/v1/admin/users` and `PATCH /api/v1/admin/users/{user_id}/role`; the latter
+supports only `viewer`, `operator`, and `admin`, and prevents demotion of the
+last administrator. The user-list response never exposes password hashes. The
+trusted-shell role-management command remains the bootstrap/recovery path for
+creating the first administrator. See [security guidance](docs/SECURITY.md).
 
 ## Data providers
 

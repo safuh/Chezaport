@@ -206,3 +206,10 @@ runtime configuration outside Git.
 - Both routes fail closed unless the host injects an administrator token validator; missing bearer tokens are rejected and denied tokens receive 403.
 - The final administrator cannot be demoted. PostgreSQL row locking serializes administrator-count checks to reduce concurrent last-admin demotion races.
 - The app factory now accepts `admin_token_validator`; production composition must supply `create_admin_token_validator` with the shared database session factory and configured JWT secret.
+
+
+## Administrator API integration verification
+
+- Added a database-backed HTTP contract test covering administrator listing, credential-field exclusion, viewer denial, role promotion, immediate privilege revocation after demotion despite an unexpired access token, last-administrator protection, and invalid role rejection.
+- The API and validator are still deliberately composed by the host; the first administrator is provisioned through the trusted-shell role-management command rather than a public bootstrap endpoint.
+- Local integration test: 1 passed. Full quality gates are being rerun for this increment.
