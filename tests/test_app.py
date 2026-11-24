@@ -72,3 +72,32 @@ def test_versioned_api_discovery_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"name": "Chezaport API", "version": "v1"}
+
+
+def test_admin_api_fails_closed_when_authorization_is_not_configured() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        response = client.get("/api/v1/admin/users")
+
+    assert response.status_code == 503
+
+
+def test_admin_api_requires_bearer_access_token() -> None:
+    async def allow_admin(_: str) -> bool:
+        return True
+
+    with TestClient(create_app(make_settings(), admin_token_validator=allow_admin)) as client:
+        response = client.get("/api/v1/admin/users")
+
+    assert response.status_code == 401
+
+
+def test_admin_api_rejects_non_admin_token() -> None:
+    async def deny_admin(_: str) -> bool:
+        return False
+
+    with TestClient(create_app(make_settings(), admin_token_validator=deny_admin)) as client:
+        response = client.get(
+            "/api/v1/admin/users", headers={"Authorization": "Bearer viewer-token"}
+        )
+
+    assert response.status_code == 403

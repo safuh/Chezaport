@@ -197,3 +197,12 @@ runtime configuration outside Git.
 - Returns each season in chronological order where the team recorded at least one completed fixture, including final table position, points, and full overall/home/away performance statistics. Seasons with no team results are omitted rather than represented as zero-performance seasons.
 - Validates both competition and team identifiers and returns stable 404 responses for unknown resources.
 - Added HTTP contract coverage for the comparison endpoint.
+
+
+## Administrator user-management API
+
+- Added `GET /api/v1/admin/users` with bounded pagination and a response that excludes password hashes and other authentication material.
+- Added `PATCH /api/v1/admin/users/{user_id}/role` for explicit `viewer`, `operator`, and `admin` role changes.
+- Both routes fail closed unless the host injects an administrator token validator; missing bearer tokens are rejected and denied tokens receive 403.
+- The final administrator cannot be demoted. PostgreSQL row locking serializes administrator-count checks to reduce concurrent last-admin demotion races.
+- The app factory now accepts `admin_token_validator`; production composition must supply `create_admin_token_validator` with the shared database session factory and configured JWT secret.

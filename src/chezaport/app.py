@@ -31,6 +31,7 @@ def create_app(
     settings: Settings | None = None,
     auth_application_factory: AuthApplicationFactory | None = None,
     sync_operator_token_validator: Callable[[str], Awaitable[bool]] | None = None,
+    admin_token_validator: Callable[[str], Awaitable[bool]] | None = None,
 ) -> FastAPI:
     """Create a configured FastAPI application with optional auth composition.
 
@@ -49,6 +50,7 @@ def create_app(
     app.state.settings = resolved
     app.state.auth_application_factory = auth_application_factory
     app.state.sync_operator_token_validator = sync_operator_token_validator
+    app.state.admin_token_validator = admin_token_validator
 
     app.add_middleware(RequestContextMiddleware)
     if resolved.cors_origins:
