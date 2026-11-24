@@ -79,6 +79,62 @@ class SyncFreshnessRead(BaseModel):
     is_stale: bool
 
 
+@router.get("/ops/data-quality")
+async def get_data_quality(session: SessionDep) -> dict[str, object]:
+    """Report measurable integrity issues in canonical sports records.
+
+    Counts are intentionally read-only and avoid exposing provider payloads or
+    personal data. A clean result means these checks found no anomalies; it is
+    not a claim that every source record has been independently verified.
+    """
+    finished_missing_score = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(Fixture)
+            .where(
+                Fixture.status == "finished",
+                or_(Fixture.home_score.is_(None), Fixture.away_score.is_(None)),
+            )
+        )
+        or 0
+    )
+    partial_score = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(Fixture)
+            .where(
+                or_(
+                    (Fixture.home_score.is_(None) & Fixture.away_score.is_not(None)),
+                    (Fixture.home_score.is_not(None) & Fixture.away_score.is_(None)),
+                )
+            )
+        )
+        or 0
+    )
+    season_mismatch = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(Fixture)
+            .join(Season, Fixture.season_id == Season.id)
+            .where(Fixture.competition_id != Season.competition_id)
+        )
+        or 0
+    )
+    checks = [
+        {"code": "finished_fixture_missing_score", "count": finished_missing_score},
+        {"code": "fixture_partial_score", "count": partial_score},
+        {"code": "fixture_season_competition_mismatch", "count": season_mismatch},
+    ]
+    total_issues = finished_missing_score + partial_score + season_mismatch
+    return {
+        "status": "healthy" if total_issues == 0 else "degraded",
+        "total_issues": total_issues,
+        "checks": checks,
+        "generated_at": datetime.now(UTC),
+        "scope": "canonical database integrity checks; not source verification",
+    }
+
+
 @router.get(
     "/ops/sync-runs",
     response_model=SyncRunPage,

@@ -95,6 +95,19 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
                 )
             )
             session.add(
+                Fixture(
+                    competition_id=competition.id,
+                    season_id=season.id,
+                    home_team_id=home.id,
+                    away_team_id=away.id,
+                    kickoff_at=datetime(2026, 8, 8, tzinfo=UTC),
+                    status="finished",
+                    home_score=None,
+                    away_score=None,
+                    round_name="Integrity test anomaly",
+                )
+            )
+            session.add(
                 SportsSyncRun(
                     provider="demo-provider",
                     resource="fixtures",
@@ -118,6 +131,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     with TestClient(app) as client:
         sync_runs = client.get("/api/v1/ops/sync-runs")
         freshness = client.get("/api/v1/ops/sync-freshness")
+        data_quality = client.get("/api/v1/ops/data-quality")
         dashboard = client.get("/")
         sports = client.get("/api/v1/sports")
         competitions = client.get("/api/v1/competitions", params={"sport_id": sport_id})
@@ -181,6 +195,11 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert freshness.status_code == 200
     assert freshness.json()[0]["provider"] == "demo-provider"
     assert freshness.json()[0]["is_stale"] is True
+    assert data_quality.status_code == 200
+    assert data_quality.json()["status"] == "degraded"
+    assert data_quality.json()["total_issues"] == 1
+    quality_checks = {item["code"]: item["count"] for item in data_quality.json()["checks"]}
+    assert quality_checks["finished_fixture_missing_score"] == 1
     assert dashboard.status_code == 200
     assert "League table" in dashboard.text
     assert "Team intelligence" in dashboard.text
@@ -198,7 +217,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert competitions.status_code == 200
     assert len(competitions.json()) == 1
     assert fixtures.status_code == 200
-    assert fixtures.json()["total"] == 1
+    assert fixtures.json()["total"] == 2
     assert fixtures.json()["items"][0]["home_team_name"] == "Alpha FC"
     assert fixture_detail.status_code == 200
     assert fixture_detail.json()["competition_name"] == "Sample League"
@@ -212,7 +231,7 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert statistics.json()["statistics"]["home_wins"] == 1
     assert season_comparison.status_code == 200
     assert matchdays.status_code == 200
-    assert matchdays.json()["total_matchdays"] == 1
+    assert matchdays.json()["total_matchdays"] == 2
     assert matchdays.json()["matchdays"][0]["name"] == "Matchday 1"
     assert matchdays.json()["matchdays"][0]["total_goals"] == 2
     assert matchdays.json()["matchdays"][0]["highest_scoring_fixture"]["home_team"] == "Alpha FC"
