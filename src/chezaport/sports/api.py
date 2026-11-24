@@ -274,6 +274,13 @@ class TeamPage(BaseModel):
     offset: int
 
 
+class TeamDetailRead(TeamRead):
+    country_name: str | None
+    venue_name: str | None
+    venue_city: str | None
+    venue_capacity: int | None
+
+
 class SeasonRead(BaseModel):
     id: str
     competition_id: str
@@ -437,6 +444,37 @@ async def list_teams(
     )
     items = [TeamRead.model_validate(row, from_attributes=True) for row in rows.all()]
     return TeamPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/teams/{team_id}", response_model=TeamDetailRead)
+async def get_team(team_id: str, session: SessionDep) -> TeamDetailRead:
+    """Return canonical club identity and home-ground context."""
+    row = (
+        await session.execute(
+            select(Team, Country.name, Venue.name, Venue.city, Venue.capacity)
+            .outerjoin(Country, Team.country_id == Country.id)
+            .outerjoin(Venue, Team.venue_id == Venue.id)
+            .where(Team.id == team_id)
+        )
+    ).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+    team, country_name, venue_name, venue_city, venue_capacity = row
+    return TeamDetailRead(
+        id=team.id,
+        sport_id=team.sport_id,
+        country_id=team.country_id,
+        venue_id=team.venue_id,
+        name=team.name,
+        slug=team.slug,
+        short_name=team.short_name,
+        founded_year=team.founded_year,
+        is_active=team.is_active,
+        country_name=country_name,
+        venue_name=venue_name,
+        venue_city=venue_city,
+        venue_capacity=venue_capacity,
+    )
 
 
 @router.get("/seasons", response_model=SeasonPage)

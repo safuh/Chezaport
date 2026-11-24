@@ -159,7 +159,8 @@ async def calculate_competition_season_comparison(
                 "home_wins": statistics["home_wins"],
                 "draws": statistics["draws"],
                 "away_wins": statistics["away_wins"],
-                "teams_with_results": len(standings),
+                "teams_with_results": sum(1 for row in standings if row["played"]),
+                "teams_in_competition": len(standings),
                 "leader": (
                     {
                         "team_id": champion["team_id"],
@@ -186,12 +187,27 @@ async def calculate_standings(
     Postponed, abandoned, cancelled, live, and unplayed fixtures are excluded.
     """
     fixtures = await _finished_fixtures(session, competition_id=competition_id, season_id=season_id)
+    participating_team_ids = (
+        select(Fixture.home_team_id)
+        .where(Fixture.competition_id == competition_id, Fixture.season_id == season_id)
+        .union(
+            select(Fixture.away_team_id).where(
+                Fixture.competition_id == competition_id, Fixture.season_id == season_id
+            )
+        )
+    )
+    participants = await session.execute(
+        select(Team.id, Team.name).where(Team.id.in_(participating_team_ids))
+    )
     totals: dict[str, TeamTotals] = {}
 
     def ensure(team_id: str, name: str) -> TeamTotals:
         if team_id not in totals:
             totals[team_id] = TeamTotals(team_id=team_id, team_name=name)
         return totals[team_id]
+
+    for team_id, team_name in participants.all():
+        ensure(team_id, team_name)
 
     for fixture, home_name, away_name in fixtures:
         assert fixture.home_score is not None and fixture.away_score is not None

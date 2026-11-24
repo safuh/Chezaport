@@ -151,7 +151,7 @@ async def test_manual_sync_is_idempotent(session_factory, registry):
 @pytest.mark.asyncio
 async def test_manual_sync_requires_provider_token(session_factory, registry):
     with pytest.raises(ProviderConfigurationError):
-        await synchronize_competitions(Settings(), session_factory, registry, ["PL"])
+        await synchronize_competitions(Settings(_env_file=None), session_factory, registry, ["PL"])
 
 
 @pytest.mark.asyncio

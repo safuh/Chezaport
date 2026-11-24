@@ -10,7 +10,7 @@ from chezaport.sports.integrations.factory import build_sports_provider_registry
 
 
 def test_registry_is_empty_without_external_credentials():
-    registry = build_sports_provider_registry(Settings())
+    registry = build_sports_provider_registry(Settings(_env_file=None))
 
     with pytest.raises(ProviderConfigurationError):
         registry.get("football-data-org")

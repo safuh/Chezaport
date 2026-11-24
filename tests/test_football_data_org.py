@@ -121,6 +121,8 @@ async def test_fetch_teams_normalizes_team_records(provider_factory):
 async def test_fetch_fixtures_maps_status_scores_and_timezone(provider_factory):
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["season"] == "2025"
+        assert request.url.params["dateFrom"] == "2025-08-01"
+        assert request.url.params["dateTo"] > request.url.params["dateFrom"]
         return httpx.Response(
             200,
             json={

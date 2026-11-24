@@ -8,6 +8,7 @@ def make_settings() -> Settings:
     return Settings(
         database_url="sqlite+aiosqlite:///:memory:",
         cors_origins=["https://example.com"],
+        _env_file=None,
     )
 
 

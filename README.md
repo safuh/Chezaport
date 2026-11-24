@@ -187,8 +187,9 @@ uv run python -m chezaport.sports.sync --watch --interval-seconds 120
 ```
 
 Watch mode performs a full import once, then refreshes only fixture records every
-120 seconds. Each fixture refresh includes the previous seven days plus upcoming
-fixtures, so late score/status corrections can be picked up. Keep it running in
+120 seconds. Each fixture refresh includes the requested start date through
+one year ahead, so recent score/status corrections and scheduled fixtures can
+be picked up. The provider requires `dateFrom` and `dateTo` together. Keep it running in
 a separate terminal from `make run`, or manage it as a supervised worker in
 staging/production. The dashboard refreshes its view every 30 seconds; actual
 data freshness is bounded by the provider plan, worker interval, rate limits,

@@ -7,7 +7,7 @@ provider response models to the application domain.
 from __future__ import annotations
 
 import re
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from urllib.parse import urljoin
 
@@ -142,7 +142,13 @@ class FootballDataOrgProvider:
         if since is not None:
             if since.tzinfo is None or since.utcoffset() is None:
                 raise ValueError("since must be timezone-aware")
-            params["dateFrom"] = since.astimezone(UTC).date().isoformat()
+            date_from = since.astimezone(UTC).date()
+            # football-data.org requires dateFrom and dateTo together. Keep a
+            # rolling one-year window so one refresh includes recent corrections
+            # and all scheduled fixtures still ahead in the selected season.
+            date_to = max(datetime.now(UTC).date(), date_from) + timedelta(days=365)
+            params["dateFrom"] = date_from.isoformat()
+            params["dateTo"] = date_to.isoformat()
         payload = await self._get(
             f"competitions/{_safe_id(competition_external_id)}/matches",
             params=params,

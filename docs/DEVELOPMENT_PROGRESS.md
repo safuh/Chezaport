@@ -249,3 +249,33 @@ runtime configuration outside Git.
 - Documented that v1 visitors do not sign in, provider credentials remain server-side, and the free provider tier has delayed scores. Live score availability is plan-dependent and must be confirmed with the provider before promising real-time results.
 - Added tests for fixture-only refresh, the requirement for an initial catalogue sync, public read-only freshness endpoints, and dashboard refresh/attribution behavior.
 - Verification: full local suite 147 passed, 2 skipped; Ruff format/lint and mypy passed; dashboard JavaScript syntax check passed. Container smoke and latest CI for this uncommitted increment remain to be run.
+
+
+## Match-centre and provider refresh correction
+
+- Added a public team profile endpoint with country and home-ground metadata, including venue city and capacity.
+- Added a match-centre panel to the dashboard. Selecting any fixture fetches its detail endpoint and displays competition, season, kickoff, status, round, and venue context.
+- Fixture cards are now keyboard-operable buttons with selected-state semantics. Team intelligence includes canonical club profile metadata alongside season statistics.
+- Fixed the live fixture polling request: football-data.org requires `dateFrom` and `dateTo` together. Incremental fixture refresh now sends both, covering the start date through one year ahead so recent corrections and upcoming fixtures are included.
+- The user's local database was inspected: Premier League catalogue import succeeded (20 teams, 128 season records, 380 fixtures); the subsequent fixture-only refresh had failed with HTTP 400 because the adapter sent `dateFrom` without `dateTo`. This increment corrects that request and will be validated against the configured provider account.
+- Made negative configuration tests independent of a developer's local `.env`, so live credentials do not make test outcomes machine-dependent.
+
+
+## Full-season dashboard correctness
+
+- Dashboard now paginates through every fixture in the selected season rather than silently using only the oldest 100. This matters for the live Premier League season, which currently contains 380 fixtures.
+- Season headline totals now use the complete competition statistics endpoint instead of calculating from the first fixture page. Club count uses the full season participant catalogue.
+- Fixture view now prioritizes the next 10 scheduled matches and latest 10 results; the Upcoming and Results tabs each show up to 20 records in chronological/reverse-chronological order respectively.
+- League standings now include all clubs in the season schedule, including teams yet to play, with zeroed statistics until they record a completed result.
+
+
+## Docker smoke harness correction
+
+- Fixed a shell pipeline issue in `scripts/docker-smoke.sh`: `grep --quiet` could close the dashboard response pipe early, causing curl exit code 23 under `pipefail`. The smoke test now downloads the dashboard to a temporary file, checks the expected content, and removes the file during cleanup.
+
+## Latest verification on the configured live-data environment
+
+- The user's configured Football-Data.org account successfully completed a fixture-only refresh after the date-range correction: 280 fixtures fetched, 0 failed, 280 unchanged. The latest fixture freshness record is `succeeded`.
+- The local Premier League 2026/27 catalogue contains 20 clubs and 380 fixtures. The dashboard now pages through all 380 rather than only the first 100.
+- Latest full test suite: 147 passed, 2 skipped. Ruff formatting/lint and mypy passed.
+- `make docker-test` passed after correcting the smoke script's curl/grep pipe handling. PostgreSQL migrations 0001–0007 applied; health, readiness, and dashboard checks succeeded; temporary containers, network, and volume were removed.

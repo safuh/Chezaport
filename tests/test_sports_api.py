@@ -150,6 +150,8 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             "/api/v1/teams",
             params={"competition_id": competition_id, "season_id": season_id},
         )
+        team_detail = client.get(f"/api/v1/teams/{team_id}")
+        missing_team = client.get("/api/v1/teams/not-a-real-team")
         seasons = client.get(
             "/api/v1/seasons",
             params={"competition_id": competition_id, "current_only": True},
@@ -180,6 +182,10 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert "/ops/sync-freshness" in dashboard.text
     assert "display refresh 30s" in dashboard.text
     assert "Football-Data.org API" in dashboard.text
+    assert "Match centre" in dashboard.text
+    assert "loadFixture" in dashboard.text
+    assert "getAllFixtures" in dashboard.text
+    assert "Latest " in dashboard.text
     assert sports.status_code == 200
     assert sports.json()[0]["code"] == "football"
     assert competitions.status_code == 200
@@ -223,6 +229,11 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert teams.status_code == 200
     assert teams.json()["total"] == 2
     assert teams.json()["items"][0]["name"] == "Alpha FC"
+    assert team_detail.status_code == 200
+    assert team_detail.json()["country_name"] == "United Kingdom"
+    assert team_detail.json()["venue_name"] == "Alpha Ground"
+    assert team_detail.json()["venue_capacity"] == 60000
+    assert missing_team.status_code == 404
     assert seasons.status_code == 200
     assert seasons.json()["total"] == 1
     assert seasons.json()["items"][0]["is_current"] is True

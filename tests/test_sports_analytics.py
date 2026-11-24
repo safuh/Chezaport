@@ -135,7 +135,7 @@ async def test_standings_ignore_unfinished_fixtures_and_apply_three_one_zero(ana
 
     table = await calculate_standings(session, competition_id=competition_id, season_id=season_id)
 
-    assert [row["team_id"] for row in table] == [home_id, away_id]
+    assert [row["team_id"] for row in table] == [home_id, away_id, third_id]
     assert table[0]["played"] == 2
     assert table[0]["won"] == 1
     assert table[0]["drawn"] == 1
@@ -143,7 +143,8 @@ async def test_standings_ignore_unfinished_fixtures_and_apply_three_one_zero(ana
     assert table[0]["goal_difference"] == 2
     assert table[0]["form"] == "WD"
     assert table[1]["points"] == 1
-    assert third_id not in {row["team_id"] for row in table}
+    assert table[2]["played"] == 0
+    assert table[2]["points"] == 0
 
 
 async def test_team_season_statistics_include_home_away_splits(analytics_session):
