@@ -849,7 +849,7 @@ class PlayerLeaderboardPage(BaseModel):
     season_id: str
     metric: str
     provider: str
-    provider_identity_coverage: int
+    linked_players: int
     items: list[PlayerLeaderboardItem]
 
 
@@ -1176,7 +1176,6 @@ async def get_player_match_history(
             select(FixturePlayerParticipation.fixture_id).where(
                 FixturePlayerParticipation.provider == provider,
                 FixturePlayerParticipation.player_external_id == identity.external_id,
-                FixturePlayerParticipation.appeared.is_(True),
             ).union(
                 select(FixtureMatchEvent.fixture_id).where(
                     FixtureMatchEvent.provider == provider,
@@ -1851,7 +1850,7 @@ async def competition_player_leaderboard(
         season_id=season_id,
         metric=metric,
         provider=provider,
-        provider_identity_coverage=len(players_by_id),
+        linked_players=len(players_by_id),
         items=ranked,
     )
 
