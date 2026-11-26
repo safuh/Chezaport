@@ -245,9 +245,7 @@ def test_player_statistics_aggregate_report_events_without_counting_bench_only(t
                 await session.scalar(select(func.count()).select_from(FixtureMatchEvent)) or 0
             )
             participation_count = int(
-                await session.scalar(
-                    select(func.count()).select_from(FixturePlayerParticipation)
-                )
+                await session.scalar(select(func.count()).select_from(FixturePlayerParticipation))
                 or 0
             )
         await engine.dispose()
