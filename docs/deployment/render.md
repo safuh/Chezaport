@@ -20,9 +20,11 @@ The database URL is normalized to SQLAlchemy's `postgresql+asyncpg` driver by
 application configuration.
 
 The blueprint starts with a 1 CPU / 2 GB web service, a 0.5 CPU / 512 MB
-background worker, and a 1 GB managed PostgreSQL plan. These are paid plans,
-not ephemeral/free instances. Review current regional availability and pricing
-in the Render dashboard before provisioning.
+background worker, and a 0.5 CPU / 1 GB managed PostgreSQL plan (`0.5c-1g`)
+with 15 GB of storage. The database IP allowlist is empty so the database is
+reachable only through Render's private network. These are paid plans, not
+ephemeral/free instances. Review current regional availability and pricing in
+the Render dashboard before provisioning.
 
 ## First deployment
 
