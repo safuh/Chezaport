@@ -18,7 +18,7 @@ def _participation_rows(report: ProviderMatchDetails) -> list[dict[str, Any]]:
     players: dict[tuple[str, str], dict[str, Any]] = {}
 
     def add_person(
-        team_id: str,
+        team_id: str | None,
         person: Any,
         *,
         starter: bool = False,
@@ -27,7 +27,7 @@ def _participation_rows(report: ProviderMatchDetails) -> list[dict[str, Any]]:
         external_id = person.external_id
         if not external_id:
             return
-        key = (team_id, external_id)
+        key = (team_id or "", external_id)
         row = players.setdefault(
             key,
             {
@@ -53,14 +53,13 @@ def _participation_rows(report: ProviderMatchDetails) -> list[dict[str, Any]]:
             add_person(side.external_id, person, bench=True)
 
     for event in report.substitutions:
-        if event.team_external_id is None:
-            continue
+        team_id = event.team_external_id
         if event.player_in_external_id:
-            key = (event.team_external_id, event.player_in_external_id)
+            key = (team_id or "", event.player_in_external_id)
             row = players.setdefault(
                 key,
                 {
-                    "team_external_id": event.team_external_id,
+                    "team_external_id": team_id,
                     "player_external_id": event.player_in_external_id,
                     "player_name": event.player_in_name,
                     "is_starter": False,
@@ -72,7 +71,7 @@ def _participation_rows(report: ProviderMatchDetails) -> list[dict[str, Any]]:
             )
             row["appeared"] = True
         if event.player_out_external_id:
-            key = (event.team_external_id, event.player_out_external_id)
+            key = (team_id or "", event.player_out_external_id)
             row = players.setdefault(
                 key,
                 {
