@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chezaport.sports.integrations.schemas import ProviderMatchDetails
-from chezaport.sports.models import FixtureMatchEvent, FixturePlayerParticipation
+from chezaport.sports.models import (
+    FixtureMatchEvent,
+    FixturePlayerParticipation,
+    FixtureReportSnapshot,
+)
 from chezaport.sports.services.match_events import normalize_match_events
 
 
@@ -159,3 +163,63 @@ async def replace_canonical_fixture_report(
     session.add_all([*event_rows, *participation])
     await session.flush()
     return len(event_rows), len(participation)
+
+
+async def backfill_cached_fixture_reports(
+    session: AsyncSession,
+    *,
+    provider: str,
+    fixture_ids: Sequence[str],
+) -> bool:
+    """Backfill legacy snapshots once, serializing concurrent materialization.
+
+    Snapshot rows are locked before checking canonical fixture IDs. On
+    PostgreSQL this prevents parallel requests from inserting duplicate event
+    and participation sets. The helper commits only when it materializes data.
+    """
+    if not fixture_ids:
+        return False
+    snapshots = list(
+        (
+            await session.scalars(
+                select(FixtureReportSnapshot)
+                .where(
+                    FixtureReportSnapshot.provider == provider,
+                    FixtureReportSnapshot.fixture_id.in_(fixture_ids),
+                )
+                .with_for_update()
+            )
+        ).all()
+    )
+    if not snapshots:
+        return False
+
+    existing_fixture_ids = set(
+        (
+            await session.scalars(
+                select(FixtureMatchEvent.fixture_id)
+                .where(FixtureMatchEvent.provider == provider)
+                .union(
+                    select(FixturePlayerParticipation.fixture_id).where(
+                        FixturePlayerParticipation.provider == provider
+                    )
+                )
+            )
+        ).all()
+    )
+    backfilled = False
+    for snapshot in snapshots:
+        if snapshot.fixture_id in existing_fixture_ids:
+            continue
+        await replace_canonical_fixture_report(
+            session,
+            provider=provider,
+            fixture_id=snapshot.fixture_id,
+            report=ProviderMatchDetails.model_validate(snapshot.payload),
+        )
+        existing_fixture_ids.add(snapshot.fixture_id)
+        backfilled = True
+
+    if backfilled:
+        await session.commit()
+    return backfilled
