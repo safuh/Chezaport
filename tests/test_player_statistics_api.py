@@ -4,6 +4,7 @@ import asyncio
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from chezaport.app import create_app
@@ -13,6 +14,8 @@ from chezaport.sports.models import (
     Competition,
     ExternalIDMapping,
     Fixture,
+    FixtureMatchEvent,
+    FixturePlayerParticipation,
     FixtureReportSnapshot,
     Player,
     Season,
@@ -233,3 +236,21 @@ def test_player_statistics_aggregate_report_events_without_counting_bench_only(t
     assert no_identity.json()["provider_identity_linked"] is False
     assert no_identity.json()["appearances"] == 0
     assert missing.status_code == 404
+
+    async def verify_lazy_materialization_is_persisted() -> tuple[int, int]:
+        engine = create_async_engine(database_url)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as session:
+            event_count = int(
+                await session.scalar(select(func.count()).select_from(FixtureMatchEvent)) or 0
+            )
+            participation_count = int(
+                await session.scalar(
+                    select(func.count()).select_from(FixturePlayerParticipation)
+                )
+                or 0
+            )
+        await engine.dispose()
+        return event_count, participation_count
+
+    assert asyncio.run(verify_lazy_materialization_is_persisted()) == (5, 3)
