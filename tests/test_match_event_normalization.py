@@ -15,9 +15,7 @@ def test_normalizer_preserves_same_minute_and_identical_duplicate_events() -> No
         "bookings": [{"minute": 32, "player_external_id": "p3", "card": "yellow"}],
     }
 
-    events = normalize_match_events(
-        report, provider="football-data-org", fixture_id="fixture-1"
-    )
+    events = normalize_match_events(report, provider="football-data-org", fixture_id="fixture-1")
 
     goals = [event for event in events if event["event_type"] == "goal"]
     assert len(goals) == 3
@@ -48,9 +46,7 @@ def test_normalizer_keys_are_independent_of_source_order() -> None:
 
 def test_normalizer_rejects_malformed_collections() -> None:
     with pytest.raises(ValueError, match="goals must be a list"):
-        normalize_match_events(
-            {"goals": {"minute": 10}}, provider="provider", fixture_id="f1"
-        )
+        normalize_match_events({"goals": {"minute": 10}}, provider="provider", fixture_id="f1")
 
 
 def test_normalizer_rejects_blank_scope() -> None:
