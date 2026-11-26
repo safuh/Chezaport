@@ -277,9 +277,12 @@
           const row=document.createElement('tr');
           cell(row,String(item.rank),'rank');
           const name=cell(row,'','team');
-          const membership=document.createElement('span');
-          membership.textContent=item.player_name+(item.membership_confirmed?'':' · registration unconfirmed');
-          name.append(membership);
+          const playerLink=document.createElement('button');
+          playerLink.type='button';
+          playerLink.className='link';
+          playerLink.textContent=item.player_name+(item.membership_confirmed?'':' · registration unconfirmed');
+          playerLink.addEventListener('click',()=>loadPlayerHistory(item.player_id,item.player_name));
+          name.append(playerLink);
           cell(row,num(item.appearances));
           cell(row,num(item.starts));
           cell(row,num(item.goals));
