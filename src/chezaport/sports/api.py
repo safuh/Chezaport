@@ -24,9 +24,9 @@ from chezaport.sports.models import (
     Country,
     ExternalIDMapping,
     Fixture,
-    FixtureReportSnapshot,
     FixtureMatchEvent,
     FixturePlayerParticipation,
+    FixtureReportSnapshot,
     Player,
     Season,
     Sport,
@@ -35,7 +35,9 @@ from chezaport.sports.models import (
     TeamMembership,
     Venue,
 )
-from chezaport.sports.services.match_report_persistence import replace_canonical_fixture_report
+from chezaport.sports.services.match_report_persistence import (
+    replace_canonical_fixture_report,
+)
 from chezaport.sports.services.analytics import (
     calculate_competition_season_comparison,
     calculate_competition_statistics,
@@ -1098,7 +1100,13 @@ async def get_player_statistics(
                     FixtureMatchEvent.fixture_id == snapshot.fixture_id,
                 ).limit(1)
             )
-            if existing is None:
+            participation_exists = await session.scalar(
+                select(FixturePlayerParticipation.id).where(
+                    FixturePlayerParticipation.provider == provider,
+                    FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
+                ).limit(1)
+            )
+            if existing is None and participation_exists is None:
                 cached_report = ProviderMatchDetails.model_validate(snapshot.payload)
                 await replace_canonical_fixture_report(
                     session,
