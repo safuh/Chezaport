@@ -198,10 +198,14 @@ async def backfill_cached_fixture_reports(
         (
             await session.scalars(
                 select(FixtureMatchEvent.fixture_id)
-                .where(FixtureMatchEvent.provider == provider)
+                .where(
+                    FixtureMatchEvent.provider == provider,
+                    FixtureMatchEvent.fixture_id.in_(fixture_ids),
+                )
                 .union(
                     select(FixturePlayerParticipation.fixture_id).where(
-                        FixturePlayerParticipation.provider == provider
+                        FixturePlayerParticipation.provider == provider,
+                        FixturePlayerParticipation.fixture_id.in_(fixture_ids),
                     )
                 )
             )
