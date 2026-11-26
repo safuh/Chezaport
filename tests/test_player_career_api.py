@@ -269,14 +269,21 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
                         "status": "finished",
                         "home_team": {
                             "external_id": "team-beta",
+                            "name": "Beta FC",
                             "lineup": [
                                 {
                                     "external_id": "player-alex",
                                     "name": "Alex Forward",
                                 }
                             ],
+                            "bench": [],
                         },
-                        "away_team": {"external_id": "team-alpha"},
+                        "away_team": {
+                            "external_id": "team-alpha",
+                            "name": "Alpha FC",
+                            "lineup": [],
+                            "bench": [],
+                        },
                         "goals": [
                             {"minute": 15, "scorer_external_id": "player-alex"},
                             {"minute": 70, "scorer_external_id": "player-alex"},
