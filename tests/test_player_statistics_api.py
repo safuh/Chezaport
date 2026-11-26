@@ -201,6 +201,8 @@ def test_player_statistics_aggregate_report_events_without_counting_bench_only(t
     started_match = next(item for item in history_data["items"] if item["started"])
     bench_match = next(item for item in history_data["items"] if not item["started"])
     assert started_match["appeared"] is True
+    assert started_match["home_team_name"] == "Home FC"
+    assert started_match["away_team_name"] == "Away FC"
     assert started_match["goals"] == 2
     assert started_match["yellow_cards"] == 1
     assert started_match["red_cards"] == 1
