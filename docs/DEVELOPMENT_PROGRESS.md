@@ -279,3 +279,38 @@ runtime configuration outside Git.
 - The local Premier League 2026/27 catalogue contains 20 clubs and 380 fixtures. The dashboard now pages through all 380 rather than only the first 100.
 - Latest full test suite: 147 passed, 2 skipped. Ruff formatting/lint and mypy passed.
 - `make docker-test` passed after correcting the smoke script's curl/grep pipe handling. PostgreSQL migrations 0001–0007 applied; health, readiness, and dashboard checks succeeded; temporary containers, network, and volume were removed.
+
+
+## Production-hardening and player-intelligence continuation — 2026-11-26
+
+### Implemented in the current feature branch
+
+- Added `GET /api/v1/players/{player_id}/career`. Career output is grouped by historical club and competition/season, includes membership periods, appearances, starts, goals, assists, cards, substitutions, and explicit provider-linkage/attribution coverage. Team attribution uses provider team identity and membership dates; unconfirmed or contradictory attribution is surfaced rather than silently assigned to a player's current club.
+- Added `GET /api/v1/teams/{team_id}/player-contributions`, with competition/season filters, metric selection, deterministic ranking, and pagination. Historical membership players remain represented even when provider identity linkage is missing.
+- Integrated player career and team contribution views into the existing vanilla JavaScript dashboard. The public team contribution panel follows the selected competition and season.
+- Added migration `0010_player_analytics_indexes` for provider/team participation lookups and secondary-player event lookups. The migration test now verifies both indexes.
+- Fixed lazy canonical report materialization: player analytics now commits the idempotent backfill before the request session closes, and a regression test verifies canonical events and participation survive a new session.
+- Protected explicit match-report cache bypass, detailed sync history, data-quality issue lists, fixture reconciliation, and provider-identity reconciliation with the sync-operator validator. Public freshness and aggregate data-quality summaries remain available without visitor accounts.
+- Removed detailed operational diagnostics from the public dashboard. It now requests only aggregate freshness and data-quality summaries, and no longer polls the data-quality summary every 30 seconds.
+- Added baseline response security headers, same-origin isolation headers, dashboard CSP, and HTTPS HSTS.
+- Corrected the Render PostgreSQL plan from the invalid `1g` identifier to `0.5c-1g`, set 15 GB storage, and restricted database inbound access to the private network.
+- Expanded deployment documentation for PostgreSQL PITR/logical exports, provider data entitlement, attribution, and operator/public access boundaries.
+
+### Validation evidence
+
+- Commit `2418217` (career/team API, tests, and dashboard integration) passed GitHub CI on Python 3.11, 3.12, and 3.13: **164 tests passed, 2 warnings**; Ruff formatting/lint, MyPy, dependency audit, package build, and PostgreSQL + Docker Compose smoke test passed.
+- The dashboard inline JavaScript passed a syntax-compilation check. This is not a substitute for desktop/mobile browser testing.
+- The initial Render Blueprint plan was created and validated in the workspace as `exs-dc46r06i0phs739ar9fg`, with automatic Blueprint sync disabled. No Render web service, worker, or database has been provisioned.
+- The current branch head adds migration `0010` and documentation/index updates after the `2418217` validation. Its fresh CI run is pending; do not treat migration `0010` as validated until that run completes.
+
+### Release blockers still open
+
+- Configure the real `FOOTBALL_DATA_API_TOKEN` as a Render secret and confirm the subscription includes the Deep Data resources required for match reports, lineups, substitutions, scorers, bookings, and squads.
+- Obtain written provider confirmation for public display, caching, historical retention, and any commercial redistribution. Attribution alone does not establish redistribution rights.
+- Configure a public domain and edge/application rate limiting before opening the service to substantial traffic.
+- Complete real desktop and mobile browser testing, including console/network inspection and accessibility checks.
+- Provision Render resources only after the current CI run passes and the provider/licensing gate is resolved.
+- Run a real production PostgreSQL backup export and restore drill after provisioning. Documentation is in place, but no production database exists to test.
+- Complete a live provider sync, verify freshness, and run the production smoke test after deployment.
+- Keep PR #2 open and in draft; do not merge until the accumulated branch diff, latest CI, security checks, and deployment acceptance criteria have been reviewed.
+
