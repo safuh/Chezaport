@@ -50,9 +50,11 @@ Read endpoints:
   and appearances, optionally scoped by `competition_id` and `season_id`.
 - `GET /api/v1/players/{player_id}/career` returns chronological club
   registrations, career totals, and per-club competition/season breakdowns.
-  Provider-confirmed team identities are used for attribution; missing or
-  contradictory membership evidence is surfaced in coverage fields rather
-  than silently assigned to a current club.
+  Provider-confirmed team identities are used for attribution. When a
+  participation omits its team identity, the service only infers a club when
+  exactly one dated membership matches a team in that fixture; ambiguous or
+  contradictory records remain visible in coverage fields rather than being
+  silently assigned to a current club.
 - `GET /api/v1/players/{player_id}/matches` returns paginated match-by-match
   participation and event totals. Bench selection is visible but is not
   counted as an appearance unless the player entered the match or started.
