@@ -81,7 +81,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 retry_after = max(1, ceil(self.window_seconds - (now - bucket.window_started_at)))
                 self._buckets[key] = bucket
                 self._buckets.move_to_end(key)
-                response = JSONResponse(
+                rate_limited_response = JSONResponse(
                     {"detail": "Rate limit exceeded"},
                     status_code=429,
                     headers={
@@ -91,7 +91,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                         "X-RateLimit-Reset": str(int(time() + retry_after)),
                     },
                 )
-                return response
+                return rate_limited_response
 
             bucket.count += 1
             self._buckets[key] = bucket
