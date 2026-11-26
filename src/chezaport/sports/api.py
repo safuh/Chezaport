@@ -872,6 +872,7 @@ class TeamPlayerContributionsPage(BaseModel):
     membership_players: int
     unlinked_provider_players: int
     unlinked_provider_events: int
+    unattributed_provider_participations: int
     items: list[TeamPlayerContributionItem]
     total: int
     limit: int
