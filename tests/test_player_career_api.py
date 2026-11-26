@@ -382,9 +382,7 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
             participation_count = await connection.scalar(
                 select(func.count())
                 .select_from(FixturePlayerParticipation)
-                .where(
-                    FixturePlayerParticipation.fixture_id == ids["beta_cup_fixture_id"]
-                )
+                .where(FixturePlayerParticipation.fixture_id == ids["beta_cup_fixture_id"])
             )
         await engine.dispose()
         return int(event_count or 0), int(participation_count or 0)
