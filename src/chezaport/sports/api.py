@@ -806,7 +806,9 @@ class PlayerMatchRead(BaseModel):
     competition_id: str
     season_id: str
     home_team_id: str
+    home_team_name: str
     away_team_id: str
+    away_team_name: str
     home_score: int | None
     away_score: int | None
     round_name: str | None
@@ -1230,6 +1232,17 @@ async def get_player_match_history(
         )
 
     participation_by_fixture = {row.fixture_id: row for row in participation_rows}
+    team_ids = {
+        team_id
+        for fixture in fixtures
+        for team_id in (fixture.home_team_id, fixture.away_team_id)
+    }
+    teams = (
+        list((await session.scalars(select(Team).where(Team.id.in_(team_ids)))).all())
+        if team_ids
+        else []
+    )
+    team_names = {team.id: team.name for team in teams}
     events_by_fixture: dict[str, list[FixtureMatchEvent]] = {}
     for event in event_rows:
         events_by_fixture.setdefault(event.fixture_id, []).append(event)
@@ -1261,7 +1274,9 @@ async def get_player_match_history(
                 competition_id=fixture.competition_id,
                 season_id=fixture.season_id,
                 home_team_id=fixture.home_team_id,
+                home_team_name=team_names.get(fixture.home_team_id, "Unknown team"),
                 away_team_id=fixture.away_team_id,
+                away_team_name=team_names.get(fixture.away_team_id, "Unknown team"),
                 home_score=fixture.home_score,
                 away_score=fixture.away_score,
                 round_name=fixture.round_name,
