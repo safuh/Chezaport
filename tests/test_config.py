@@ -43,3 +43,21 @@ def test_auth_token_lifetimes_are_bounded() -> None:
     settings = Settings(access_token_minutes=30, refresh_token_days=14)
     assert settings.access_token_minutes == 30
     assert settings.refresh_token_days == 14
+
+
+def test_managed_postgresql_urls_are_normalized_for_asyncpg() -> None:
+    settings = Settings(
+        environment=Environment.PRODUCTION,
+        debug=False,
+        database_url="postgresql://user:secret@db.example.com:5432/chezaport",
+    )
+
+    assert settings.database_url == (
+        "postgresql+asyncpg://user:secret@db.example.com:5432/chezaport"
+    )
+
+
+def test_legacy_postgres_scheme_is_normalized_for_asyncpg() -> None:
+    settings = Settings(database_url="postgres://user:secret@localhost:5432/chezaport")
+
+    assert settings.database_url.startswith("postgresql+asyncpg://")
