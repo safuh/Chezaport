@@ -237,7 +237,9 @@ async def build_player_career(
                 continue
             fixture_team_by_id[fixture.id] = team_id
             _new_stats(team_stats, team_id).add_participation(row)
-            _new_stats(competition_stats, (team_id, fixture.competition_id, fixture.season_id)).add_participation(row)
+            _new_stats(
+                competition_stats, (team_id, fixture.competition_id, fixture.season_id)
+            ).add_participation(row)
             competition_names[(team_id, fixture.competition_id, fixture.season_id)] = (
                 competition_name,
                 season_name,
@@ -269,9 +271,9 @@ async def build_player_career(
                 outside_membership_events += 1
                 continue
             _new_stats(team_stats, team_id).add_event(event, fixture.id, identity.external_id)
-            _new_stats(competition_stats, (team_id, fixture.competition_id, fixture.season_id)).add_event(
-                event, fixture.id, identity.external_id
-            )
+            _new_stats(
+                competition_stats, (team_id, fixture.competition_id, fixture.season_id)
+            ).add_event(event, fixture.id, identity.external_id)
             competition_names[(team_id, fixture.competition_id, fixture.season_id)] = (
                 competition_name,
                 season_name,
@@ -327,10 +329,7 @@ async def build_player_career(
     clubs.sort(
         key=lambda item: (
             min(
-                (
-                    membership["joined_on"] or date.min
-                    for membership in item["membership_periods"]
-                ),
+                (membership["joined_on"] or date.min for membership in item["membership_periods"]),
                 default=date.max,
             ),
             item["team_name"].casefold(),
