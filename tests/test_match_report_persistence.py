@@ -78,7 +78,12 @@ def test_report_import_is_idempotent_and_replaces_corrected_provider_data(tmp_pa
                             "player_in_name": "Substitute",
                             "player_out_external_id": "p-1",
                             "player_out_name": "Starter",
-                        }
+                        },
+                        {
+                            "minute": 85,
+                            "player_in_external_id": "p-3",
+                            "player_in_name": "Late Substitute",
+                        },
                     ],
                 }
             )
@@ -106,6 +111,11 @@ def test_report_import_is_idempotent_and_replaces_corrected_provider_data(tmp_pa
                     FixturePlayerParticipation.player_external_id == "p-2"
                 )
             )
+            substitute_without_team = await session.scalar(
+                select(FixturePlayerParticipation).where(
+                    FixturePlayerParticipation.player_external_id == "p-3"
+                )
+            )
 
             corrected = report.model_copy(update={"goals": (), "substitutions": ()})
             await replace_canonical_fixture_report(
@@ -123,6 +133,11 @@ def test_report_import_is_idempotent_and_replaces_corrected_provider_data(tmp_pa
             )
             assert starter is not None and starter.is_starter and starter.appeared
             assert substitute is not None and substitute.appeared and substitute.is_bench
+            assert (
+                substitute_without_team is not None
+                and substitute_without_team.appeared
+                and substitute_without_team.team_external_id is None
+            )
         await engine.dispose()
         return (
             first_counts[0],
@@ -134,6 +149,6 @@ def test_report_import_is_idempotent_and_replaces_corrected_provider_data(tmp_pa
 
     first, second, events, participations, corrected_total = asyncio.run(scenario())
     assert first == second
-    assert events == 3  # Two same-minute goals and one substitution.
-    assert participations == 2
+    assert events == 4  # Two same-minute goals and two substitution events.
+    assert participations == 3
     assert corrected_total == 2  # The corrected report has only the two lineup records.
