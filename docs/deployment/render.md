@@ -13,15 +13,16 @@ The root `render.yaml` defines three resources in Frankfurt:
 - `chezaport-sync`: isolated background worker that refreshes provider data.
 - `chezaport-db`: managed PostgreSQL 17 database.
 
-The web service applies Alembic migrations in its pre-deploy release step and
+Both services deploy only after configured Git checks pass. The web service applies Alembic migrations in its pre-deploy release step and
 uses `/api/health/ready` as its HTTP health check. The worker shares the
 database and provider token but does not receive public inbound traffic.
 The database URL is normalized to SQLAlchemy's `postgresql+asyncpg` driver by
 application configuration.
 
-The blueprint intentionally uses paid, persistent service plans rather than
-ephemeral/free instances for production. Review current regional availability
-and pricing in the Render dashboard before provisioning.
+The blueprint starts with a 1 CPU / 2 GB web service, a 0.5 CPU / 512 MB
+background worker, and a 1 GB managed PostgreSQL plan. These are paid plans,
+not ephemeral/free instances. Review current regional availability and pricing
+in the Render dashboard before provisioning.
 
 ## First deployment
 
