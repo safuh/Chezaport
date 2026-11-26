@@ -1153,16 +1153,20 @@ async def get_player_match_history(
         )
         for snapshot in cached_snapshots:
             event_exists = await session.scalar(
-                select(FixtureMatchEvent.id).where(
+                select(FixtureMatchEvent.id)
+                .where(
                     FixtureMatchEvent.provider == provider,
                     FixtureMatchEvent.fixture_id == snapshot.fixture_id,
-                ).limit(1)
+                )
+                .limit(1)
             )
             participation_exists = await session.scalar(
-                select(FixturePlayerParticipation.id).where(
+                select(FixturePlayerParticipation.id)
+                .where(
                     FixturePlayerParticipation.provider == provider,
                     FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
-                ).limit(1)
+                )
+                .limit(1)
             )
             if event_exists is None and participation_exists is None:
                 await replace_canonical_fixture_report(
@@ -1175,10 +1179,12 @@ async def get_player_match_history(
 
     fixture_statement = select(Fixture).where(
         Fixture.id.in_(
-            select(FixturePlayerParticipation.fixture_id).where(
+            select(FixturePlayerParticipation.fixture_id)
+            .where(
                 FixturePlayerParticipation.provider == provider,
                 FixturePlayerParticipation.player_external_id == identity.external_id,
-            ).union(
+            )
+            .union(
                 select(FixtureMatchEvent.fixture_id).where(
                     FixtureMatchEvent.provider == provider,
                     or_(
@@ -1193,9 +1199,9 @@ async def get_player_match_history(
         fixture_statement = fixture_statement.where(Fixture.competition_id == competition_id)
     if season_id is not None:
         fixture_statement = fixture_statement.where(Fixture.season_id == season_id)
-    total = await session.scalar(
-        select(func.count()).select_from(fixture_statement.subquery())
-    ) or 0
+    total = (
+        await session.scalar(select(func.count()).select_from(fixture_statement.subquery())) or 0
+    )
     fixtures = list(
         (
             await session.scalars(
@@ -1233,9 +1239,7 @@ async def get_player_match_history(
 
     participation_by_fixture = {row.fixture_id: row for row in participation_rows}
     team_ids = {
-        team_id
-        for fixture in fixtures
-        for team_id in (fixture.home_team_id, fixture.away_team_id)
+        team_id for fixture in fixtures for team_id in (fixture.home_team_id, fixture.away_team_id)
     }
     teams = (
         list((await session.scalars(select(Team).where(Team.id.in_(team_ids)))).all())
@@ -1357,16 +1361,20 @@ async def get_player_statistics(
         backfilled = False
         for snapshot in snapshots:
             existing = await session.scalar(
-                select(FixtureMatchEvent.id).where(
+                select(FixtureMatchEvent.id)
+                .where(
                     FixtureMatchEvent.provider == provider,
                     FixtureMatchEvent.fixture_id == snapshot.fixture_id,
-                ).limit(1)
+                )
+                .limit(1)
             )
             participation_exists = await session.scalar(
-                select(FixturePlayerParticipation.id).where(
+                select(FixturePlayerParticipation.id)
+                .where(
                     FixturePlayerParticipation.provider == provider,
                     FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
-                ).limit(1)
+                )
+                .limit(1)
             )
             if existing is None and participation_exists is None:
                 cached_report = ProviderMatchDetails.model_validate(snapshot.payload)
@@ -1400,9 +1408,7 @@ async def get_player_statistics(
                 )
             ).all()
         )
-        appearance_fixtures = {
-            row.fixture_id for row in participation_rows if row.appeared
-        }
+        appearance_fixtures = {row.fixture_id for row in participation_rows if row.appeared}
         starts = len({row.fixture_id for row in participation_rows if row.is_starter})
         for event in event_rows:
             payload = event.payload
@@ -1740,16 +1746,20 @@ async def competition_player_leaderboard(
         )
         for snapshot in snapshots:
             event_exists = await session.scalar(
-                select(FixtureMatchEvent.id).where(
+                select(FixtureMatchEvent.id)
+                .where(
                     FixtureMatchEvent.provider == provider,
                     FixtureMatchEvent.fixture_id == snapshot.fixture_id,
-                ).limit(1)
+                )
+                .limit(1)
             )
             participation_exists = await session.scalar(
-                select(FixturePlayerParticipation.id).where(
+                select(FixturePlayerParticipation.id)
+                .where(
                     FixturePlayerParticipation.provider == provider,
                     FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
-                ).limit(1)
+                )
+                .limit(1)
             )
             if event_exists is None and participation_exists is None:
                 await replace_canonical_fixture_report(
@@ -1867,8 +1877,7 @@ async def competition_player_leaderboard(
         )
     )
     ranked = [
-        item.model_copy(update={"rank": index})
-        for index, item in enumerate(items[:limit], start=1)
+        item.model_copy(update={"rank": index}) for index, item in enumerate(items[:limit], start=1)
     ]
     return PlayerLeaderboardPage(
         competition_id=competition_id,
