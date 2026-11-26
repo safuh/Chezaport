@@ -89,6 +89,40 @@ factually correct.
 - Confirm provider attribution, caching, display, and redistribution rights
   for each competition and data type before enabling public provider data.
 
+## Provider licensing and data entitlement
+
+The initial adapter uses football-data.org. Technical API access does not by
+itself establish a right to redistribute the returned data commercially.
+
+Before enabling the production sync worker:
+
+- Obtain written confirmation from football-data.org that the selected
+  subscription permits ChezaPort's intended public display, caching, historical
+  retention, and any commercial use. The published terms do not clearly grant a
+  blanket commercial redistribution licence.
+- Confirm the selected subscription includes every resource ChezaPort consumes.
+  The published pricing page distinguishes the basic Free tier (fixtures,
+  schedules and league tables, with delayed scores) from the Free + Deep Data
+  tier, which includes line-ups, substitutions, scorers, bookings/cards and
+  squads. Player analytics and match reports depend on those deeper resources.
+- Confirm the subscription is registered for the ChezaPort application/domain.
+  The provider's terms describe API credentials as application-specific.
+- Keep the API token confidential and server-side. Never put it in source
+  control, browser code, logs, screenshots, or public API responses.
+- Preserve the visible attribution already rendered by the dashboard:
+  "Football data provided by the Football-Data.org API".
+- Do not use provider-owned club logos or player photographs without separate
+  permission from their respective rights holders.
+- If the subscription is cancelled or data-display rights become uncertain,
+  stop synchronization and follow the provider's data-retention and takedown
+  requirements before continuing to serve cached provider data.
+
+References:
+
+- [Football-Data.org terms and conditions](https://www.football-data.org/about)
+- [Football-Data.org FAQ and attribution guidance](https://www.football-data.org/documentation/faq)
+- [Football-Data.org pricing and data-point coverage](https://www.football-data.org/pricing)
+
 ## Operations and recovery
 
 - Take an encrypted database backup before every schema-changing release.
