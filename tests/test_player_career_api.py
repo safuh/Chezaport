@@ -4,6 +4,7 @@ import asyncio
 from datetime import UTC, date, datetime
 
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from chezaport.app import create_app
@@ -15,6 +16,7 @@ from chezaport.sports.models import (
     Fixture,
     FixtureMatchEvent,
     FixturePlayerParticipation,
+    FixtureReportSnapshot,
     Player,
     Season,
     Sport,
@@ -203,15 +205,6 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
                     is_starter=True,
                     appeared=True,
                 ),
-                FixturePlayerParticipation(
-                    provider="football-data-org",
-                    fixture_id=fixtures[2].id,
-                    player_external_id="player-alex",
-                    player_name="Alex Forward",
-                    team_external_id="team-beta",
-                    is_starter=True,
-                    appeared=True,
-                ),
             ]
             session.add_all(participations)
 
@@ -263,26 +256,35 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
                     player_external_id="player-alex",
                     payload={"team_external_id": "team-beta", "card": "red"},
                 ),
-                FixtureMatchEvent(
-                    provider="football-data-org",
-                    fixture_id=fixtures[2].id,
-                    event_type="goal",
-                    source_key="goal-beta-2",
-                    minute=15,
-                    player_external_id="player-alex",
-                    payload={"team_external_id": "team-beta"},
-                ),
-                FixtureMatchEvent(
-                    provider="football-data-org",
-                    fixture_id=fixtures[2].id,
-                    event_type="goal",
-                    source_key="goal-beta-3",
-                    minute=70,
-                    player_external_id="player-alex",
-                    payload={"team_external_id": "team-beta"},
-                ),
             ]
             session.add_all(events)
+            session.add(
+                FixtureReportSnapshot(
+                    fixture_id=fixtures[2].id,
+                    provider="football-data-org",
+                    external_id="fixture-beta-cup",
+                    payload={
+                        "external_id": "fixture-beta-cup",
+                        "kickoff_at": "2025-08-15T00:00:00Z",
+                        "status": "finished",
+                        "home_team": {
+                            "external_id": "team-beta",
+                            "lineup": [
+                                {
+                                    "external_id": "player-alex",
+                                    "name": "Alex Forward",
+                                }
+                            ],
+                        },
+                        "away_team": {"external_id": "team-alpha"},
+                        "goals": [
+                            {"minute": 15, "scorer_external_id": "player-alex"},
+                            {"minute": 70, "scorer_external_id": "player-alex"},
+                        ],
+                    },
+                    fetched_at=datetime(2025, 8, 16, tzinfo=UTC),
+                )
+            )
             await session.commit()
             result = {
                 "player_id": alex.id,
@@ -294,6 +296,7 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
                 "league_season_id": league_season.id,
                 "cup_id": cup.id,
                 "cup_season_id": cup_season.id,
+                "beta_cup_fixture_id": fixtures[2].id,
             }
         await engine.dispose()
         return result
@@ -367,3 +370,25 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
     assert unlinked_career.json()["totals"]["appearances"] == 0
     assert missing_player.status_code == 404
     assert missing_team.status_code == 404
+
+    async def verify_backfill() -> tuple[int, int]:
+        engine = create_async_engine(database_url)
+        async with engine.connect() as connection:
+            event_count = await connection.scalar(
+                select(func.count())
+                .select_from(FixtureMatchEvent)
+                .where(FixtureMatchEvent.fixture_id == ids["beta_cup_fixture_id"])
+            )
+            participation_count = await connection.scalar(
+                select(func.count())
+                .select_from(FixturePlayerParticipation)
+                .where(
+                    FixturePlayerParticipation.fixture_id == ids["beta_cup_fixture_id"]
+                )
+            )
+        await engine.dispose()
+        return int(event_count or 0), int(participation_count or 0)
+
+    event_count, participation_count = asyncio.run(verify_backfill())
+    assert event_count == 2
+    assert participation_count == 1
