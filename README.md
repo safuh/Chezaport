@@ -109,6 +109,12 @@ ChezaPort v1 is a public, read-only sports information and analytics product.
 unset for the first release. The optional identity and role-management code is
 reserved for a later release and is not needed to browse the site or API.
 
+Aggregate data freshness and data-quality summaries are public. Detailed
+synchronization history, affected-record issue lists, reconciliation previews,
+and explicit match-report cache bypasses require a sync-operator bearer token.
+With visitor identity disabled, those operator routes fail closed; the public
+dashboard does not expose internal operational diagnostics.
+
 The provider API token is a server-side integration credential, not a ChezaPort
 visitor account. Keep it in the ignored local `.env` file or a deployment secret;
 never expose it in browser JavaScript or public API responses.
