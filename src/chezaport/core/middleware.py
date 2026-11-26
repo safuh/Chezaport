@@ -13,6 +13,7 @@ import structlog
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
+from starlette.types import ASGIApp
 
 _REQUEST_ID_HEADER = "X-Request-ID"
 log = structlog.get_logger(__name__)
@@ -38,7 +39,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: ASGIApp,
         *,
         public_requests_per_minute: int = 120,
         match_report_requests_per_minute: int = 10,
