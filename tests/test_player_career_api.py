@@ -313,9 +313,7 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
                 "season_id": ids["cup_season_id"],
             },
         )
-        unlinked_career = client.get(
-            f"/api/v1/players/{ids['historical_only_id']}/career"
-        )
+        unlinked_career = client.get(f"/api/v1/players/{ids['historical_only_id']}/career")
         missing_player = client.get("/api/v1/players/missing/career")
         missing_team = client.get("/api/v1/teams/missing/player-contributions")
 
