@@ -55,5 +55,6 @@ Read endpoints:
   `season_id`. The `metric` parameter defaults to `goals`.
 
 Player minutes are intentionally nullable: lineup and substitution events do
-not always provide reliable on/off-pitch timestamps. Provider identity coverage
-also limits which canonical player profiles can appear in event leaderboards.
+not always provide reliable on/off-pitch timestamps. The public dashboard now exposes season player rankings and selectable match-by-match
+history. Provider identity coverage limits which canonical player profiles can
+appear in event leaderboards.
