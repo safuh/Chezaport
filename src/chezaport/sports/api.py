@@ -799,6 +799,38 @@ class PlayerStatisticsRead(BaseModel):
     minutes_unavailable_reason: str | None = None
 
 
+class PlayerMatchRead(BaseModel):
+    fixture_id: str
+    kickoff_at: datetime
+    status: str
+    competition_id: str
+    season_id: str
+    home_team_id: str
+    away_team_id: str
+    home_score: int | None
+    away_score: int | None
+    round_name: str | None
+    appeared: bool
+    started: bool
+    goals: int
+    assists: int
+    yellow_cards: int
+    red_cards: int
+    substitutions_in: int
+    substitutions_out: int
+    minutes_played: int | None = None
+
+
+class PlayerMatchPage(BaseModel):
+    player_id: str
+    provider: str
+    provider_identity_linked: bool
+    items: list[PlayerMatchRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class SquadMemberRead(PlayerRead):
     membership_id: str
     joined_on: date | None
@@ -1037,6 +1069,161 @@ async def get_player(player_id: str, session: SessionDep) -> PlayerDetailRead:
         date_of_birth=player.date_of_birth,
         position=player.position,
         memberships=memberships,
+    )
+
+
+@router.get("/players/{player_id}/matches", response_model=PlayerMatchPage)
+async def get_player_match_history(
+    player_id: str,
+    session: SessionDep,
+    competition_id: str | None = None,
+    season_id: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> PlayerMatchPage:
+    """Return provider-confirmed match-by-match participation and event history."""
+    player = await session.get(Player, player_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail="Player not found")
+    if season_id is not None:
+        season = await session.get(Season, season_id)
+        if season is None or (competition_id and season.competition_id != competition_id):
+            raise HTTPException(status_code=404, detail="Competition season not found")
+        competition_id = season.competition_id
+
+    provider = "football-data-org"
+    identity = await session.scalar(
+        select(ExternalIDMapping).where(
+            ExternalIDMapping.provider == provider,
+            ExternalIDMapping.entity_type == CanonicalEntityType.PLAYER.value,
+            ExternalIDMapping.entity_id == player_id,
+        )
+    )
+    if identity is None:
+        return PlayerMatchPage(
+            player_id=player_id,
+            provider=provider,
+            provider_identity_linked=False,
+            items=[],
+            total=0,
+            limit=limit,
+            offset=offset,
+        )
+
+    fixture_statement = select(Fixture).where(
+        Fixture.id.in_(
+            select(FixturePlayerParticipation.fixture_id).where(
+                FixturePlayerParticipation.provider == provider,
+                FixturePlayerParticipation.player_external_id == identity.external_id,
+                FixturePlayerParticipation.appeared.is_(True),
+            ).union(
+                select(FixtureMatchEvent.fixture_id).where(
+                    FixtureMatchEvent.provider == provider,
+                    or_(
+                        FixtureMatchEvent.player_external_id == identity.external_id,
+                        FixtureMatchEvent.secondary_player_external_id == identity.external_id,
+                    ),
+                )
+            )
+        )
+    )
+    if competition_id is not None:
+        fixture_statement = fixture_statement.where(Fixture.competition_id == competition_id)
+    if season_id is not None:
+        fixture_statement = fixture_statement.where(Fixture.season_id == season_id)
+    total = await session.scalar(
+        select(func.count()).select_from(fixture_statement.subquery())
+    ) or 0
+    fixtures = list(
+        (
+            await session.scalars(
+                fixture_statement.order_by(Fixture.kickoff_at.desc(), Fixture.id)
+                .offset(offset)
+                .limit(limit)
+            )
+        ).all()
+    )
+    fixture_ids = [fixture.id for fixture in fixtures]
+    event_rows: list[FixtureMatchEvent] = []
+    participation_rows: list[FixturePlayerParticipation] = []
+    if fixture_ids:
+        event_rows = list(
+            (
+                await session.scalars(
+                    select(FixtureMatchEvent).where(
+                        FixtureMatchEvent.provider == provider,
+                        FixtureMatchEvent.fixture_id.in_(fixture_ids),
+                    )
+                )
+            ).all()
+        )
+        participation_rows = list(
+            (
+                await session.scalars(
+                    select(FixturePlayerParticipation).where(
+                        FixturePlayerParticipation.provider == provider,
+                        FixturePlayerParticipation.fixture_id.in_(fixture_ids),
+                        FixturePlayerParticipation.player_external_id == identity.external_id,
+                    )
+                )
+            ).all()
+        )
+
+    participation_by_fixture = {row.fixture_id: row for row in participation_rows}
+    events_by_fixture: dict[str, list[FixtureMatchEvent]] = {}
+    for event in event_rows:
+        events_by_fixture.setdefault(event.fixture_id, []).append(event)
+
+    items: list[PlayerMatchRead] = []
+    for fixture in fixtures:
+        participation = participation_by_fixture.get(fixture.id)
+        goals = assists = yellow = red = sub_in = sub_out = 0
+        for event in events_by_fixture.get(fixture.id, []):
+            payload = event.payload
+            if event.event_type == "goal":
+                goals += event.player_external_id == identity.external_id
+                assists += event.secondary_player_external_id == identity.external_id
+            elif event.event_type == "booking" and event.player_external_id == identity.external_id:
+                card = str(payload.get("card", "")).lower()
+                yellow += "yellow" in card
+                red += "red" in card
+            elif event.event_type == "substitution":
+                sub_in += event.player_external_id == identity.external_id
+                sub_out += event.secondary_player_external_id == identity.external_id
+        appeared = bool(participation and participation.appeared) or bool(
+            goals or assists or yellow or red or sub_in or sub_out
+        )
+        items.append(
+            PlayerMatchRead(
+                fixture_id=fixture.id,
+                kickoff_at=fixture.kickoff_at,
+                status=fixture.status,
+                competition_id=fixture.competition_id,
+                season_id=fixture.season_id,
+                home_team_id=fixture.home_team_id,
+                away_team_id=fixture.away_team_id,
+                home_score=fixture.home_score,
+                away_score=fixture.away_score,
+                round_name=fixture.round_name,
+                appeared=appeared,
+                started=bool(participation and participation.is_starter),
+                goals=goals,
+                assists=assists,
+                yellow_cards=yellow,
+                red_cards=red,
+                substitutions_in=sub_in,
+                substitutions_out=sub_out,
+                minutes_played=None,
+            )
+        )
+    return PlayerMatchPage(
+        player_id=player_id,
+        provider=provider,
+        provider_identity_linked=True,
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
