@@ -405,8 +405,18 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
             params={"limit": 2},
             headers={"Authorization": "Bearer test-operator"},
         )
+        sync_runs = client.get(
+            "/api/v1/ops/sync-runs",
+            headers={"Authorization": "Bearer test-operator"},
+        )
+        invalid_sync_runs = client.get(
+            "/api/v1/ops/sync-runs",
+            headers={"Authorization": "Bearer invalid-token"},
+        )
 
     assert response.status_code == 200
+    assert sync_runs.status_code == 200
+    assert invalid_sync_runs.status_code == 403
     payload = response.json()
     assert payload["status"] == "degraded"
     checks = {item["code"]: item["count"] for item in payload["checks"]}
