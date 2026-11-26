@@ -412,7 +412,10 @@ async def build_team_player_contributions(
                 .join(Fixture, FixturePlayerParticipation.fixture_id == Fixture.id)
                 .where(
                     FixturePlayerParticipation.provider == provider,
-                    FixturePlayerParticipation.team_external_id == team_mapping.external_id,
+                    or_(
+                        FixturePlayerParticipation.team_external_id == team_mapping.external_id,
+                        FixturePlayerParticipation.team_external_id.is_(None),
+                    ),
                     Fixture.id.in_(fixture_statement),
                 )
                 .order_by(Fixture.kickoff_at.asc(), Fixture.id.asc())
@@ -464,12 +467,21 @@ async def build_team_player_contributions(
     linked_provider_players: set[str] = set()
     unlinked_provider_players: set[str] = set()
     unlinked_provider_events = 0
+    unattributed_provider_participations = 0
 
     for row, fixture in participation_rows:
         player_id = player_external_to_id.get(row.player_external_id)
         if player_id is None:
             unlinked_provider_players.add(row.player_external_id)
             continue
+        if row.team_external_id is None:
+            periods = membership_by_player.get(player_id, [])
+            if (
+                team_id not in {fixture.home_team_id, fixture.away_team_id}
+                or not _active_membership(periods, fixture.kickoff_at.date())
+            ):
+                unattributed_provider_participations += 1
+                continue
         linked_provider_players.add(player_id)
         participation_team_by_fixture_player.add((fixture.id, row.player_external_id))
         stats_by_player.setdefault(player_id, _Stats()).add_participation(row)
@@ -577,6 +589,7 @@ async def build_team_player_contributions(
         "membership_players": len(membership_by_player),
         "unlinked_provider_players": len(unlinked_provider_players),
         "unlinked_provider_events": unlinked_provider_events,
+        "unattributed_provider_participations": unattributed_provider_participations,
         "items": page,
         "total": total,
         "limit": limit,
