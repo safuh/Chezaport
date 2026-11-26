@@ -82,6 +82,7 @@ class _Stats:
             "substitutions_out": self.substitutions_out,
         }
 
+
 def _active_membership(periods: list[TeamMembership], on_date: date) -> bool:
     return any(
         (period.joined_on is None or period.joined_on <= on_date)
