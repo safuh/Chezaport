@@ -1755,7 +1755,6 @@ async def competition_player_leaderboard(
         else []
     )
     players_by_id = {player.id: player for player in players}
-    external_by_player = {row.entity_id: row.external_id for row in mappings}
     event_rows = (
         list(
             (
