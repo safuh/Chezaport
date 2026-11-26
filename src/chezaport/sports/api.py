@@ -71,7 +71,9 @@ async def _require_sync_operator(
         raise HTTPException(status_code=401, detail="Bearer access token required")
     validator = getattr(request.app.state, "sync_operator_token_validator", None)
     if validator is None:
-        raise HTTPException(status_code=503, detail="Sync-operator authentication is not configured")
+        raise HTTPException(
+            status_code=503, detail="Sync-operator authentication is not configured"
+        )
     if not await validator(credentials.credentials):
         raise HTTPException(status_code=403, detail="Sync-operator access required")
 
