@@ -17,20 +17,18 @@ from sqlalchemy import or_, select
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from chezaport.sports.integrations.schemas import ProviderMatchDetails
 from chezaport.sports.models import (
     Competition,
     ExternalIDMapping,
     Fixture,
     FixtureMatchEvent,
     FixturePlayerParticipation,
-    FixtureReportSnapshot,
     Player,
     Season,
     Team,
     TeamMembership,
 )
-from chezaport.sports.services.match_report_persistence import replace_canonical_fixture_report
+from chezaport.sports.services.match_report_persistence import backfill_cached_fixture_reports
 
 DEFAULT_PROVIDER = "football-data-org"
 
@@ -85,57 +83,6 @@ class _Stats:
         }
 
 
-
-
-async def _backfill_cached_reports(
-    session: AsyncSession,
-    *,
-    provider: str,
-    fixture_ids: list[str],
-) -> None:
-    """Materialize legacy snapshots once, under row locks, before analytics queries."""
-    if not fixture_ids:
-        return
-    snapshots = list(
-        (
-            await session.scalars(
-                select(FixtureReportSnapshot)
-                .where(
-                    FixtureReportSnapshot.provider == provider,
-                    FixtureReportSnapshot.fixture_id.in_(fixture_ids),
-                )
-                .with_for_update()
-            )
-        ).all()
-    )
-    if not snapshots:
-        return
-    existing_fixture_ids = set(
-        (
-            await session.scalars(
-                select(FixtureMatchEvent.fixture_id)
-                .where(FixtureMatchEvent.provider == provider)
-                .union(
-                    select(FixturePlayerParticipation.fixture_id).where(
-                        FixturePlayerParticipation.provider == provider
-                    )
-                )
-            )
-        ).all()
-    )
-    backfilled = False
-    for snapshot in snapshots:
-        if snapshot.fixture_id in existing_fixture_ids:
-            continue
-        await replace_canonical_fixture_report(
-            session,
-            provider=provider,
-            fixture_id=snapshot.fixture_id,
-            report=ProviderMatchDetails.model_validate(snapshot.payload),
-        )
-        backfilled = True
-    if backfilled:
-        await session.commit()
 
 
 def _active_membership(periods: list[TeamMembership], on_date: date) -> bool:
@@ -234,7 +181,7 @@ async def build_player_career(
                     )
                 ).all()
             )
-            await _backfill_cached_reports(
+            await backfill_cached_fixture_reports(
                 session, provider=provider, fixture_ids=career_fixture_ids
             )
         participation_rows = (
@@ -480,7 +427,7 @@ async def build_team_player_contributions(
     event_rows: Sequence[Row[tuple[FixtureMatchEvent, Fixture]]] = ()
     if team_mapping is not None:
         team_fixture_ids = list((await session.scalars(fixture_statement)).all())
-        await _backfill_cached_reports(
+        await backfill_cached_fixture_reports(
             session, provider=provider, fixture_ids=team_fixture_ids
         )
         participation_rows = (
