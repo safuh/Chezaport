@@ -5,7 +5,8 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +50,7 @@ from chezaport.sports.services.match_report_persistence import (
 )
 
 router = APIRouter(tags=["sports"])
+_bearer = HTTPBearer(auto_error=False)
 
 
 async def _session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -1626,8 +1628,9 @@ async def get_fixture_report(
     request: Request,
     session: SessionDep,
     refresh: bool = Query(default=False),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)] = None,
 ) -> ProviderMatchDetails:
-    """Return a cached normalized report, refreshing stale data on demand."""
+    """Return a cached report; only a validated sync operator can refresh it."""
     fixture = await session.get(Fixture, fixture_id)
     if fixture is None:
         raise HTTPException(status_code=404, detail="Fixture not found")
@@ -1638,14 +1641,20 @@ async def get_fixture_report(
             FixtureReportSnapshot.fixture_id == fixture_id,
         )
     )
-    now = datetime.now(UTC)
-    if snapshot is not None and not refresh:
-        fetched_at = snapshot.fetched_at
-        if fetched_at.tzinfo is None:
-            fetched_at = fetched_at.replace(tzinfo=UTC)
-        if now - fetched_at < timedelta(hours=6):
-            return ProviderMatchDetails.model_validate(snapshot.payload)
+    if not refresh:
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail="No cached match report is available")
+        return ProviderMatchDetails.model_validate(snapshot.payload)
 
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Bearer access token required")
+    validator = getattr(request.app.state, "sync_operator_token_validator", None)
+    if validator is None:
+        raise HTTPException(status_code=503, detail="Sync-operator authentication is not configured")
+    if not await validator(credentials.credentials):
+        raise HTTPException(status_code=403, detail="Sync-operator access required")
+
+    now = datetime.now(UTC)
     mapping = await session.scalar(
         select(ExternalIDMapping).where(
             ExternalIDMapping.provider == provider_name,
