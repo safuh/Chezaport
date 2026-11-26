@@ -1089,6 +1089,26 @@ async def get_player_statistics(
     appearances = starts = 0
     goals = assists = yellow_cards = red_cards = substitutions_in = substitutions_out = 0
     if identity is not None and fixture_ids:
+        # Backfill canonical rows from reports cached before this schema existed.
+        backfilled = False
+        for snapshot in snapshots:
+            existing = await session.scalar(
+                select(FixtureMatchEvent.id).where(
+                    FixtureMatchEvent.provider == provider,
+                    FixtureMatchEvent.fixture_id == snapshot.fixture_id,
+                ).limit(1)
+            )
+            if existing is None:
+                cached_report = ProviderMatchDetails.model_validate(snapshot.payload)
+                await replace_canonical_fixture_report(
+                    session,
+                    provider=provider,
+                    fixture_id=snapshot.fixture_id,
+                    report=cached_report,
+                )
+                backfilled = True
+        if backfilled:
+            await session.flush()
         event_rows = list(
             (
                 await session.scalars(
