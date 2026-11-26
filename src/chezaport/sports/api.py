@@ -62,6 +62,20 @@ async def _session(request: Request) -> AsyncIterator[AsyncSession]:
 SessionDep = Annotated[AsyncSession, Depends(_session)]
 
 
+async def _require_sync_operator(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(_bearer)],
+) -> None:
+    """Fail closed unless the caller has a currently authorized sync-operator token."""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Bearer access token required")
+    validator = getattr(request.app.state, "sync_operator_token_validator", None)
+    if validator is None:
+        raise HTTPException(status_code=503, detail="Sync-operator authentication is not configured")
+    if not await validator(credentials.credentials):
+        raise HTTPException(status_code=403, detail="Sync-operator access required")
+
+
 class SyncRunRead(BaseModel):
     id: str
     provider: str
@@ -305,7 +319,7 @@ async def get_data_quality(session: SessionDep) -> dict[str, object]:
     }
 
 
-@router.get("/ops/data-quality/issues")
+@router.get("/ops/data-quality/issues", dependencies=[Depends(_require_sync_operator)])
 async def list_data_quality_issues(
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
@@ -527,6 +541,7 @@ async def list_data_quality_issues(
 @router.get(
     "/ops/sync-runs",
     response_model=SyncRunPage,
+    dependencies=[Depends(_require_sync_operator)],
 )
 async def list_sync_runs(
     session: SessionDep,
@@ -1646,13 +1661,7 @@ async def get_fixture_report(
             raise HTTPException(status_code=404, detail="No cached match report is available")
         return ProviderMatchDetails.model_validate(snapshot.payload)
 
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Bearer access token required")
-    validator = getattr(request.app.state, "sync_operator_token_validator", None)
-    if validator is None:
-        raise HTTPException(status_code=503, detail="Sync-operator authentication is not configured")
-    if not await validator(credentials.credentials):
-        raise HTTPException(status_code=403, detail="Sync-operator access required")
+    await _require_sync_operator(request, credentials)
 
     now = datetime.now(UTC)
     mapping = await session.scalar(
@@ -2169,6 +2178,7 @@ class ProviderIdentityOverlapPage(BaseModel):
 @router.get(
     "/ops/reconciliation/fixtures",
     response_model=FixtureReconciliationPage,
+    dependencies=[Depends(_require_sync_operator)],
 )
 async def preview_fixture_reconciliation(
     session: SessionDep,
@@ -2232,6 +2242,7 @@ async def preview_fixture_reconciliation(
 @router.get(
     "/ops/reconciliation/provider-identities",
     response_model=ProviderIdentityOverlapPage,
+    dependencies=[Depends(_require_sync_operator)],
 )
 async def preview_provider_identity_overlaps(
     session: SessionDep,
