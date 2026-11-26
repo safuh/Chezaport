@@ -242,6 +242,10 @@ The service binds to loopback only. Put it behind a TLS-terminating reverse
 proxy or managed ingress. Use a separate staging database; never point staging
 at production data.
 
+## Managed Render deployment
+
+A production Render Blueprint is provided at [`render.yaml`](render.yaml). It provisions the public dashboard/API, an isolated provider-sync worker, and managed PostgreSQL. Follow the [Render production runbook](docs/deployment/render.md) for provisioning, secret configuration, release verification, backups, and rollback. The blueprint does not enable visitor authentication.
+
 ## Production deployment
 
 ```bash
