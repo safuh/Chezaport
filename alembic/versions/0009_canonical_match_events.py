@@ -54,7 +54,7 @@ def upgrade() -> None:
         sa.Column("provider", sa.String(length=80), nullable=False),
         sa.Column("player_external_id", sa.String(length=160), nullable=False),
         sa.Column("player_name", sa.String(length=180), nullable=True),
-        sa.Column("team_external_id", sa.String(length=160), nullable=False),
+        sa.Column("team_external_id", sa.String(length=160), nullable=True),
         sa.Column("is_starter", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("is_bench", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("appeared", sa.Boolean(), nullable=False, server_default=sa.false()),
