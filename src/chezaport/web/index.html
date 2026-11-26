@@ -207,7 +207,7 @@
         get('/teams/'+id),
         get('/teams/'+id+'/statistics?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season)),
         get('/teams/'+id+'/form?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season)),
-        get('/teams/'+id+'/player-contributions?metric='+encodeURIComponent(metric)+'&limit=20')
+        get('/teams/'+id+'/player-contributions?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season)+'&metric='+encodeURIComponent(metric)+'&limit=20')
       ]);
       const s=response.statistics||{};
       const target=$('teamStats');
@@ -262,7 +262,7 @@
         const table=document.createElement('table');
         const head=document.createElement('thead');
         const header=document.createElement('tr');
-        ['#','Player','Apps','Starts','Goals','Assists'].forEach(label=>{
+        ['#','Player','Apps','Starts','Goals','Assists','YC','RC'].forEach(label=>{
           const th=document.createElement('th');
           th.textContent=label;
           header.append(th);
@@ -280,6 +280,8 @@
           cell(row,num(item.starts));
           cell(row,num(item.goals));
           cell(row,num(item.assists));
+          cell(row,num(item.yellow_cards));
+          cell(row,num(item.red_cards));
           body.append(row);
         });
         table.append(head,body);
