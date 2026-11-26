@@ -20,6 +20,20 @@ def test_health_endpoint() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_security_headers_are_applied_to_public_responses() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        api_response = client.get("/api/health")
+        dashboard_response = client.get("/")
+
+    assert api_response.headers["X-Content-Type-Options"] == "nosniff"
+    assert api_response.headers["X-Frame-Options"] == "DENY"
+    assert api_response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert api_response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+    assert api_response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+    assert api_response.headers["Cross-Origin-Resource-Policy"] == "same-origin"
+    assert "frame-ancestors 'none'" in dashboard_response.headers["Content-Security-Policy"]
+
+
 def test_request_id_is_generated_and_returned() -> None:
     with TestClient(create_app(make_settings())) as client:
         response = client.get("/api/health")
