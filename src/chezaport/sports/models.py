@@ -339,7 +339,9 @@ class FixtureMatchEvent(Base):
     __tablename__ = "fixture_match_events"
     __table_args__ = (
         UniqueConstraint(
-            "provider", "fixture_id", "source_key",
+            "provider",
+            "fixture_id",
+            "source_key",
             name="uq_fixture_match_events_provider_fixture_source",
         ),
         Index("ix_fixture_match_events_fixture_type", "fixture_id", "event_type"),
@@ -368,7 +370,9 @@ class FixturePlayerParticipation(Base):
     __tablename__ = "fixture_player_participation"
     __table_args__ = (
         UniqueConstraint(
-            "provider", "fixture_id", "player_external_id",
+            "provider",
+            "fixture_id",
+            "player_external_id",
             name="uq_fixture_player_participation_provider_fixture_player",
         ),
         Index("ix_fixture_player_participation_player", "provider", "player_external_id"),
