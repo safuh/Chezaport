@@ -38,8 +38,10 @@ events and squad participation in `fixture_match_events` and
 `fixture_player_participation`. A successful report refresh replaces the
 provider/fixture event and participation set in the same database transaction.
 Repeated imports are idempotent; a corrected complete report replaces stale
-records. Older cached report snapshots are lazily materialized when player
-analytics are requested.
+records. Older cached report snapshots are lazily materialized through one
+shared backfill service under snapshot-row locks. Successful backfills commit
+canonical events and participations before analytics requests close their
+sessions, preventing request teardown from rolling back the materialization.
 
 Read endpoints:
 
