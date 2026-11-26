@@ -287,30 +287,42 @@ runtime configuration outside Git.
 
 - Added `GET /api/v1/players/{player_id}/career`. Career output is grouped by historical club and competition/season, includes membership periods, appearances, starts, goals, assists, cards, substitutions, and explicit provider-linkage/attribution coverage. Team attribution uses provider team identity and membership dates; unconfirmed or contradictory attribution is surfaced rather than silently assigned to a player's current club.
 - Added `GET /api/v1/teams/{team_id}/player-contributions`, with competition/season filters, metric selection, deterministic ranking, and pagination. Historical membership players remain represented even when provider identity linkage is missing.
-- Integrated player career and team contribution views into the existing vanilla JavaScript dashboard. The public team contribution panel follows the selected competition and season.
+- Integrated player career and team contribution views into the existing vanilla JavaScript dashboard. Career panels now show club periods, competition/season breakdowns, goals, assists, cards, and clickable player links from team contribution rankings.
+- Added a CI JavaScript syntax check for the single-file dashboard; this verifies parsing, not browser runtime behavior.
 - Added migration `0010_player_analytics_indexes` for provider/team participation lookups and secondary-player event lookups. The migration test now verifies both indexes.
-- Fixed lazy canonical report materialization: player analytics now commits the idempotent backfill before the request session closes, and a regression test verifies canonical events and participation survive a new session.
+- Centralized lazy canonical report materialization in a shared backfill service. Player statistics, match history, leaderboards, career analytics, and team contributions now use it; snapshot rows are locked during backfill and canonical events/participations are committed before request-session teardown.
+- Added a regression fixture with snapshot-only match data. The career endpoint materializes it, a subsequent team-contribution request remains idempotent, and a new session verifies the canonical rows persisted.
 - Protected explicit match-report cache bypass, detailed sync history, data-quality issue lists, fixture reconciliation, and provider-identity reconciliation with the sync-operator validator. Public freshness and aggregate data-quality summaries remain available without visitor accounts.
 - Removed detailed operational diagnostics from the public dashboard. It now requests only aggregate freshness and data-quality summaries, and no longer polls the data-quality summary every 30 seconds.
 - Added baseline response security headers, same-origin isolation headers, dashboard CSP, and HTTPS HSTS.
+- Added bounded per-process API rate limiting: 120 requests/minute for general public API traffic and 10 requests/minute for match reports, with rate-limit headers and HTTP 429 responses. Health checks are exempt.
+- Configured the Render web command to trust forwarded client/protocol headers from Render ingress, enabling correct HTTPS detection and client-IP handling.
 - Corrected the Render PostgreSQL plan from the invalid `1g` identifier to `0.5c-1g`, set 15 GB storage, and restricted database inbound access to the private network.
 - Expanded deployment documentation for PostgreSQL PITR/logical exports, provider data entitlement, attribution, and operator/public access boundaries.
 
 ### Validation evidence
 
-- Commit `2418217` (career/team API, tests, and dashboard integration) passed GitHub CI on Python 3.11, 3.12, and 3.13: **164 tests passed, 2 warnings**; Ruff formatting/lint, MyPy, dependency audit, package build, and PostgreSQL + Docker Compose smoke test passed.
-- The dashboard inline JavaScript passed a syntax-compilation check. This is not a substitute for desktop/mobile browser testing.
-- The initial Render Blueprint plan was created and validated in the workspace as `exs-dc46r06i0phs739ar9fg`, with automatic Blueprint sync disabled. No Render web service, worker, or database has been provisioned.
-- The current branch head adds migration `0010` and documentation/index updates after the `2418217` validation. Its fresh CI run is pending; do not treat migration `0010` as validated until that run completes.
+- Latest GitHub CI run #312 on head `dfc52d9` passed on Python 3.11, 3.12, and 3.13: **165 tests passed, 2 warnings**. Ruff formatting/lint, MyPy, dependency audit, package build, dashboard JavaScript syntax validation, and PostgreSQL + Docker Compose smoke test passed.
+- Latest Security workflow #269 passed CodeQL Python analysis.
+- The Render Blueprint was re-planned successfully as `exs-dc46r06i0phs739ar9fg` / plan `exe-dc4723qjnfac73bnojkg`, including trusted proxy headers and rate-limit environment variables. Automatic Blueprint sync remains disabled. No Render web service, worker, or database has been provisioned.
+- The dashboard has only had JavaScript syntax validation; desktop/mobile browser runtime, console, network, and accessibility testing remain outstanding.
 
 ### Release blockers still open
 
 - Configure the real `FOOTBALL_DATA_API_TOKEN` as a Render secret and confirm the subscription includes the Deep Data resources required for match reports, lineups, substitutions, scorers, bookings, and squads.
 - Obtain written provider confirmation for public display, caching, historical retention, and any commercial redistribution. Attribution alone does not establish redistribution rights.
-- Configure a public domain and edge/application rate limiting before opening the service to substantial traffic.
+- Configure an edge rate limit before horizontal scaling or substantial public traffic. The current in-process limiter is intentionally single-instance and is not a distributed quota.
 - Complete real desktop and mobile browser testing, including console/network inspection and accessibility checks.
 - Provision Render resources only after the current CI run passes and the provider/licensing gate is resolved.
 - Run a real production PostgreSQL backup export and restore drill after provisioning. Documentation is in place, but no production database exists to test.
 - Complete a live provider sync, verify freshness, and run the production smoke test after deployment.
 - Keep PR #2 open and in draft; do not merge until the accumulated branch diff, latest CI, security checks, and deployment acceptance criteria have been reviewed.
 
+
+
+### Current Git state
+
+- Branch: `feature/sports-platform-foundation`
+- Head: `dfc52d97b16b56cc87e0611242e7cb3e02953438`
+- PR #2: open and still draft; 238 commits ahead of `main`, 0 behind; 118 changed files in the accumulated PR diff.
+- Do not merge yet. The latest CI and CodeQL checks pass, but the full accumulated 118-file diff still requires a final review before promotion.
