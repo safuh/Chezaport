@@ -166,6 +166,8 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
         freshness = client.get("/api/v1/ops/sync-freshness")
         data_quality = client.get("/api/v1/ops/data-quality")
         quality_issues = client.get("/api/v1/ops/data-quality/issues", params={"limit": 10})
+        fixture_reconciliation = client.get("/api/v1/ops/reconciliation/fixtures")
+        identity_reconciliation = client.get("/api/v1/ops/reconciliation/provider-identities")
         dashboard = client.get("/")
         sports = client.get("/api/v1/sports")
         competitions = client.get("/api/v1/competitions", params={"sport_id": sport_id})
@@ -230,10 +232,10 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
             params={"as_of": "2025-12-31"},
         )
 
-    assert sync_runs.status_code == 200
-    assert sync_runs.json()["total"] == 2
-    assert sync_runs.json()["items"][0]["status"] == "succeeded"
-    assert sync_runs.json()["items"][0]["duration_seconds"] == 5.0
+    assert sync_runs.status_code == 401
+    assert quality_issues.status_code == 401
+    assert fixture_reconciliation.status_code == 401
+    assert identity_reconciliation.status_code == 401
     assert freshness.status_code == 200
     assert freshness.json()[0]["provider"] == "demo-provider"
     assert freshness.json()[0]["is_stale"] is True
@@ -244,15 +246,9 @@ def test_sports_read_api_and_analytics(tmp_path) -> None:
     assert quality_checks["finished_fixture_missing_score"] == 1
     assert quality_checks["fixture_past_kickoff_still_scheduled"] == 1
     assert quality_checks["orphan_external_id_mapping"] == 1
-    assert quality_issues.status_code == 200
-    assert quality_issues.json()["total"] == 3
-    issue_codes = {item["code"] for item in quality_issues.json()["items"]}
-    assert issue_codes == {
-        "finished_fixture_missing_score",
-        "fixture_past_kickoff_still_scheduled",
-        "orphan_external_id_mapping",
-    }
-    assert "View affected records" in dashboard.text
+    assert "View affected records" not in dashboard.text
+    assert "/ops/data-quality/issues" not in dashboard.text
+    assert "/ops/reconciliation/" not in dashboard.text
     assert "Provider mappings with missing canonical records" in dashboard.text
     assert "Past kick-off fixtures still marked scheduled" in dashboard.text
     assert dashboard.status_code == 200
@@ -394,10 +390,21 @@ def test_data_quality_detects_fixture_participant_sport_mismatch(tmp_path) -> No
         await engine.dispose()
 
     asyncio.run(prepare_database())
-    app = create_app(Settings(database_url=database_url))
+
+    async def allow_operator(token: str) -> bool:
+        return token == "test-operator"
+
+    app = create_app(
+        Settings(database_url=database_url),
+        sync_operator_token_validator=allow_operator,
+    )
     with TestClient(app) as client:
         response = client.get("/api/v1/ops/data-quality")
-    issues = client.get("/api/v1/ops/data-quality/issues", params={"limit": 2})
+        issues = client.get(
+            "/api/v1/ops/data-quality/issues",
+            params={"limit": 2},
+            headers={"Authorization": "Bearer test-operator"},
+        )
 
     assert response.status_code == 200
     payload = response.json()
@@ -483,10 +490,18 @@ def test_fixture_reconciliation_preview_is_conservative_and_read_only(tmp_path) 
         await engine.dispose()
 
     asyncio.run(prepare_database())
-    app = create_app(Settings(database_url=database_url))
+
+    async def allow_operator(token: str) -> bool:
+        return token == "test-operator"
+
+    app = create_app(
+        Settings(database_url=database_url),
+        sync_operator_token_validator=allow_operator,
+    )
+    headers = {"Authorization": "Bearer test-operator"}
     with TestClient(app) as client:
-        response = client.get("/api/v1/ops/reconciliation/fixtures")
-        second_response = client.get("/api/v1/ops/reconciliation/fixtures")
+        response = client.get("/api/v1/ops/reconciliation/fixtures", headers=headers)
+        second_response = client.get("/api/v1/ops/reconciliation/fixtures", headers=headers)
 
     assert response.status_code == 200
     payload = response.json()
@@ -549,10 +564,18 @@ def test_provider_identity_overlap_preview_is_informational_and_read_only(tmp_pa
         await engine.dispose()
 
     asyncio.run(prepare_database())
-    app = create_app(Settings(database_url=database_url))
+
+    async def allow_operator(token: str) -> bool:
+        return token == "test-operator"
+
+    app = create_app(
+        Settings(database_url=database_url),
+        sync_operator_token_validator=allow_operator,
+    )
+    headers = {"Authorization": "Bearer test-operator"}
     with TestClient(app) as client:
-        response = client.get("/api/v1/ops/reconciliation/provider-identities")
-        repeated = client.get("/api/v1/ops/reconciliation/provider-identities")
+        response = client.get("/api/v1/ops/reconciliation/provider-identities", headers=headers)
+        repeated = client.get("/api/v1/ops/reconciliation/provider-identities", headers=headers)
 
     assert response.status_code == 200
     payload = response.json()
