@@ -95,9 +95,7 @@ def test_report_import_is_idempotent_and_replaces_corrected_provider_data(tmp_pa
                 session, provider="test-provider", fixture_id=fixture.id, report=report
             )
             await session.commit()
-            event_count = await session.scalar(
-                select(func.count()).select_from(FixtureMatchEvent)
-            )
+            event_count = await session.scalar(select(func.count()).select_from(FixtureMatchEvent))
             participation_count = await session.scalar(
                 select(func.count()).select_from(FixturePlayerParticipation)
             )
