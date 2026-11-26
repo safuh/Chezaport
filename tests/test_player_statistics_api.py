@@ -166,6 +166,18 @@ def test_player_statistics_aggregate_report_events_without_counting_bench_only(t
         substitute_stats = client.get(f"/api/v1/players/{bench_only_id}/statistics")
         no_identity = client.get(f"/api/v1/players/{unlinked_player_id}/statistics")
         unlinked_history = client.get(f"/api/v1/players/{unlinked_player_id}/matches")
+        leaderboard = client.get(
+            f"/api/v1/competitions/{competition_id}/player-leaderboard",
+            params={"season_id": season_id, "metric": "goals"},
+        )
+        assist_leaderboard = client.get(
+            f"/api/v1/competitions/{competition_id}/player-leaderboard",
+            params={"season_id": season_id, "metric": "assists"},
+        )
+        invalid_leaderboard = client.get(
+            f"/api/v1/competitions/{competition_id}/player-leaderboard",
+            params={"season_id": season_id, "metric": "minutes"},
+        )
         missing = client.get("/api/v1/players/not-a-player/statistics")
 
     assert response.status_code == 200
@@ -197,6 +209,15 @@ def test_player_statistics_aggregate_report_events_without_counting_bench_only(t
     assert unlinked_history.status_code == 200
     assert unlinked_history.json()["provider_identity_linked"] is False
     assert unlinked_history.json()["items"] == []
+    assert leaderboard.status_code == 200
+    leaderboard_data = leaderboard.json()
+    assert leaderboard_data["metric"] == "goals"
+    assert leaderboard_data["items"][0]["player_id"] == player_id
+    assert leaderboard_data["items"][0]["goals"] == 2
+    assert leaderboard_data["items"][0]["rank"] == 1
+    assert assist_leaderboard.status_code == 200
+    assert assist_leaderboard.json()["items"][0]["player_id"] == bench_only_id
+    assert invalid_leaderboard.status_code == 422
     assert substitute_stats.status_code == 200
     assert substitute_stats.json()["assists"] == 1
     assert substitute_stats.json()["substitutions_in"] == 1
