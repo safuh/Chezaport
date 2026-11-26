@@ -38,12 +38,12 @@
         <section class="panel"><div class="panel-head"><h2>Fixtures & results</h2><small id="fixtureCaption">Recent and upcoming</small><div class="tabs" role="group" aria-label="Fixture filter"><button class="active" data-filter="all">All</button><button data-filter="upcoming">Upcoming</button><button data-filter="played">Results</button></div></div><div class="fixture-list" id="fixtures"><div class="empty">Loading fixtures…</div></div></section>
       </div>
       <aside class="stack">
-        <section class="panel"><div class="panel-head"><h2>Team intelligence</h2><small>Season performance</small></div><select class="team-select" id="team"><option value="">Choose a club</option></select><div id="teamStats"><div class="empty" style="margin-top:12px">Select a club to explore its season.</div></div></section>
+        <section class="panel"><div class="panel-head"><h2>Team intelligence</h2><small>Season performance</small></div><select class="team-select" id="team"><option value="">Choose a club</option></select><div id="teamStats"><div class="empty" style="margin-top:12px">Select a club to explore its season.</div></div><div class="panel-head" style="margin-top:18px"><h3>Player contributions</h3><select class="team-select" id="teamContributionMetric" aria-label="Team contribution metric"><option value="goals">Goals</option><option value="assists">Assists</option><option value="appearances">Appearances</option><option value="starts">Starts</option></select></div><div id="teamContributions" aria-live="polite"><div class="empty">Select a club to see historical player contributions.</div></div></section>
         <section class="panel"><div class="panel-head"><h2>Match centre</h2><small>Fixture details</small></div><div id="matchDetail" class="empty">Select a fixture to inspect match details.</div></section>
         <section class="panel"><div class="panel-head"><h2>Data quality</h2><small id="qualityStatus">Checking records…</small></div><div id="dataQuality" aria-live="polite"><div class="empty">Checking canonical sports records…</div></div><p class="subtle" style="margin:12px 0 0">Automated database integrity checks; source data is not independently verified.</p></section>
         <section class="panel"><div class="panel-head"><h2>Season snapshot</h2><small>Competition analytics</small></div><div id="snapshot" class="empty">Select a competition season to see its scoring profile.</div></section>
         <section class="panel"><div class="panel-head"><h2>Player leaderboard</h2><select class="team-select" id="playerMetric" aria-label="Player leaderboard metric"><option value="goals">Goals</option><option value="assists">Assists</option><option value="appearances">Appearances</option></select></div><div id="playerLeaderboard" class="empty">Select a competition season to load player rankings.</div></section>
-        <section class="panel"><div class="panel-head"><h2>Player match history</h2><small id="playerHistoryCaption">Select a player above</small></div><div id="playerHistory" class="empty">Choose a player from the leaderboard to inspect match-by-match details.</div></section>
+        <section class="panel"><div class="panel-head"><h2>Player intelligence</h2><small id="playerHistoryCaption">Select a player above</small></div><div id="playerCareer" aria-live="polite"><div class="empty">Choose a player to inspect career history.</div></div><div class="panel-head" style="margin-top:16px"><h3>Match-by-match history</h3></div><div id="playerHistory" class="empty">Choose a player from the leaderboard to inspect match-by-match details.</div></section>
       </aside>
     </section>
     <footer class="footer"><span>CHEZAPORT · Independent sports information and analysis</span><span><span id="dataAttribution">Synthetic demonstration data · not a live provider feed</span> · <a class="link" href="/docs" target="_blank" rel="noopener">API documentation</a></span></footer>
@@ -63,7 +63,7 @@
   function textElement(tag,className,value){const element=document.createElement(tag);if(className)element.className=className;element.textContent=value;return element}
   function cell(row,value,cls){const td=document.createElement('td');if(cls)td.className=cls;td.textContent=value;row.append(td);return td}
   function empty(target,message){const box=document.createElement('div');box.className='empty';box.textContent=message;target.replaceChildren(box)}
-  async function init(){try{const [healthResponse,competitions]=await Promise.all([fetch('/api/health/ready'),get('/competitions')]);if(!healthResponse.ok)throw new Error('API readiness check failed ('+healthResponse.status+')');$('healthText').textContent='API connected · checking data freshness';$('healthDot').style.background='var(--accent)';if(!competitions.length){$('healthText').textContent='API connected · no competition data';empty($('standings'),'No competitions yet. Load provider data or the synthetic demo dataset.');return}const select=$('competition');select.replaceChildren();competitions.forEach(c=>option(select,c.id,c.name));state.competition=select.value;select.addEventListener('change',()=>{state.competition=select.value;loadCompetition()});$('team').addEventListener('change',loadTeam);$('playerMetric').addEventListener('change',loadPlayerLeaderboard);document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{state.filter=button.dataset.filter;document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b===button));renderFixtures()}));await loadCompetition();await Promise.all([loadFreshness(),loadDataQuality()]);if(state.refreshTimer)clearInterval(state.refreshTimer);state.refreshTimer=setInterval(async()=>{if(state.competition&&state.season)await loadSeason();await loadFreshness()},30000)}catch(error){$('healthText').textContent='API unavailable';$('healthDot').style.background='var(--danger)';showError($('standings'),error.message+' — start the API and apply migrations.')}}
+  async function init(){try{const [healthResponse,competitions]=await Promise.all([fetch('/api/health/ready'),get('/competitions')]);if(!healthResponse.ok)throw new Error('API readiness check failed ('+healthResponse.status+')');$('healthText').textContent='API connected · checking data freshness';$('healthDot').style.background='var(--accent)';if(!competitions.length){$('healthText').textContent='API connected · no competition data';empty($('standings'),'No competitions yet. Load provider data or the synthetic demo dataset.');return}const select=$('competition');select.replaceChildren();competitions.forEach(c=>option(select,c.id,c.name));state.competition=select.value;select.addEventListener('change',()=>{state.competition=select.value;loadCompetition()});$('team').addEventListener('change',loadTeam);$('teamContributionMetric').addEventListener('change',loadTeam);$('playerMetric').addEventListener('change',loadPlayerLeaderboard);document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{state.filter=button.dataset.filter;document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b===button));renderFixtures()}));await loadCompetition();await Promise.all([loadFreshness(),loadDataQuality()]);if(state.refreshTimer)clearInterval(state.refreshTimer);state.refreshTimer=setInterval(async()=>{if(state.competition&&state.season)await loadSeason();await loadFreshness()},30000)}catch(error){$('healthText').textContent='API unavailable';$('healthDot').style.background='var(--danger)';showError($('standings'),error.message+' — start the API and apply migrations.')}}
   async function loadFreshness(){try{const rows=await get('/ops/sync-freshness');const fixtureRun=rows.filter(item=>item.resource==='fixtures').sort((a,b)=>new Date(b.last_completed_at||b.last_started_at)-new Date(a.last_completed_at||a.last_started_at))[0];if(!fixtureRun){$('healthText').textContent='API connected · demo or locally stored data';$('dataAttribution').textContent='Synthetic demonstration data · not a live provider feed';return}$('dataAttribution').textContent=fixtureRun.provider==='football-data-org'?'Football data provided by the Football-Data.org API':'Data provider: '+fixtureRun.provider;const updated=fixtureRun.last_completed_at||fixtureRun.last_started_at;const label=new Intl.DateTimeFormat(undefined,{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'}).format(new Date(updated));$('healthText').textContent=(fixtureRun.last_status==='succeeded'?'Data updated ':'Last sync '+fixtureRun.last_status+' ')+label+' · display refresh 30s';$('healthDot').style.background=fixtureRun.last_status==='succeeded'?'var(--accent)':'var(--danger)'}catch(error){$('healthText').textContent='API connected · freshness unavailable'}}
   async function loadDataQuality(){
     try{
@@ -119,8 +119,180 @@
   async function loadMatchReport(id,button){const target=$('matchReport');if(!target)return;button.disabled=true;button.textContent='Loading report…';empty(target,'Loading the latest stored match report. Availability depends on provider coverage.');try{const report=await get('/fixtures/'+encodeURIComponent(id)+'/report');const events=[];(report.goals||[]).forEach(event=>events.push({minute:event.minute??null,label:'Goal · '+(event.scorer_name||'Scorer unavailable')+(event.assist_name?' (assist: '+event.assist_name+')':''),detail:event.home_score===null||event.away_score===null?'':event.home_score+'–'+event.away_score}));(report.bookings||[]).forEach(event=>events.push({minute:event.minute??null,label:(event.card||'Card')+' · '+(event.player_name||'Player unavailable'),detail:''}));(report.substitutions||[]).forEach(event=>events.push({minute:event.minute??null,label:'Substitution · '+(event.player_out_name||'Player unavailable')+' → '+(event.player_in_name||'Player unavailable'),detail:''}));events.sort((a,b)=>(a.minute??999)-(b.minute??999));const title=textElement('h4','','Match report · '+(report.attendance===null?'Attendance unavailable':'Attendance '+num(report.attendance)));const formations=textElement('p','subtle','Formations: '+(report.home_team.formation||'unavailable')+' · '+(report.away_team.formation||'unavailable'));const list=document.createElement('div');list.className='bars';events.forEach(event=>{const row=document.createElement('div');row.className='bar-row';row.style.gridTemplateColumns='42px minmax(0,1fr) auto';row.append(textElement('b','',event.minute===null?'—':event.minute+"′"),textElement('span','',event.label),textElement('small','subtle',event.detail));list.append(row)});if(!events.length)list.append(textElement('p','subtle','The provider returned no goal, card or substitution events for this match.'));const squads=document.createElement('p');squads.className='subtle';squads.textContent='Line-ups: '+(report.home_team.lineup?.length||0)+' home players · '+(report.away_team.lineup?.length||0)+' away players. Bench: '+(report.home_team.bench?.length||0)+' home · '+(report.away_team.bench?.length||0)+' away.';target.replaceChildren(title,formations,squads,list)}catch(error){empty(target,'Detailed report unavailable: '+error.message)}finally{button.disabled=false;button.textContent='Reload stored match report'}}
   function renderStats(s,matchdays){const target=$('snapshot');const values=[['Home wins',s.home_wins],['Draws',s.draws],['Away wins',s.away_wins]];const grid=document.createElement('div');grid.className='metric-grid';values.forEach(([label,value])=>{const metric=document.createElement('div');metric.className='metric';const b=document.createElement('b');b.textContent=num(value);const span=document.createElement('span');span.textContent=label;metric.append(b,span);grid.append(metric)});const scoring=document.createElement('p');scoring.className='subtle';scoring.textContent='Goals scored: '+num(s.total_goals)+' · Matches completed: '+num(s.played);const heading=textElement('h3','','Matchday summaries');heading.style.cssText='font-size:12px;margin:18px 0 9px';const list=document.createElement('div');list.className='bars';const ordered=[...matchdays].sort((a,b)=>new Date(b.kickoff_from)-new Date(a.kickoff_from));ordered.slice(0,8).forEach(day=>{const row=document.createElement('div');row.className='bar-row';row.style.gridTemplateColumns='minmax(90px,1fr) auto';const name=textElement('span','',day.name);const detail=textElement('b','',day.played+'/'+day.fixtures+' played · '+num(day.total_goals)+' goals');detail.style.fontSize='10px';row.append(name,detail);list.append(row)});if(!ordered.length)list.append(textElement('p','subtle','No provider-supplied matchday labels are available yet.'));target.replaceChildren(grid,scoring,heading,list)}
   async function loadPlayerLeaderboard(){if(!state.competition||!state.season)return;const target=$('playerLeaderboard');try{const metric=$('playerMetric').value||'goals';const result=await get('/competitions/'+encodeURIComponent(state.competition)+'/player-leaderboard?season_id='+encodeURIComponent(state.season)+'&metric='+encodeURIComponent(metric)+'&limit=20');if(!result.items?.length){empty(target,'No provider-linked player statistics are available for this season yet.');return}const table=document.createElement('table');const head=document.createElement('thead');const header=document.createElement('tr');['#','Player','Apps','Goals','Assists'].forEach(label=>{const th=document.createElement('th');th.textContent=label;header.append(th)});head.append(header);const body=document.createElement('tbody');result.items.forEach(item=>{const row=document.createElement('tr');cell(row,String(item.rank),'rank');const name=cell(row,'','team');const open=document.createElement('button');open.type='button';open.className='link';open.textContent=item.player_name;open.addEventListener('click',()=>loadPlayerHistory(item.player_id,item.player_name));name.append(open);cell(row,num(item.appearances));cell(row,num(item.goals));cell(row,num(item.assists));body.append(row)});table.append(head,body);const wrap=document.createElement('div');wrap.className='table-wrap';wrap.append(table);target.replaceChildren(wrap);$('playerHistoryCaption').textContent=result.items.length+' ranked players · '+metric}catch(error){showError(target,'Player rankings unavailable: '+error.message)}}
-  async function loadPlayerHistory(playerId,playerName){state.selectedPlayer=playerId;state.selectedPlayerName=playerName;$('playerHistoryCaption').textContent=playerName+' · loading';const target=$('playerHistory');try{const result=await get('/players/'+encodeURIComponent(playerId)+'/matches?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season)+'&limit=50');if(!result.items?.length){empty(target,'No provider-confirmed match history is available for this player.');$('playerHistoryCaption').textContent=playerName+' · no match records';return}const table=document.createElement('table');const head=document.createElement('thead');const header=document.createElement('tr');['Match','Status','G','A','YC','RC'].forEach(label=>{const th=document.createElement('th');th.textContent=label;header.append(th)});head.append(header);const body=document.createElement('tbody');result.items.forEach(item=>{const row=document.createElement('tr');const match=cell(row,item.home_team_name+' '+(item.home_score??'—')+'–'+(item.away_score??'—')+' '+item.away_team_name,'team');match.title=fmtDate(item.kickoff_at)+' · '+(item.round_name||item.status);cell(row,item.appeared?(item.started?'Started':'Appeared'):'Selected · unused');cell(row,num(item.goals));cell(row,num(item.assists));cell(row,num(item.yellow_cards));cell(row,num(item.red_cards));body.append(row)});table.append(head,body);const wrap=document.createElement('div');wrap.className='table-wrap';wrap.append(table);target.replaceChildren(wrap);$('playerHistoryCaption').textContent=playerName+' · '+num(result.total)+' matches · minutes unavailable'}catch(error){showError(target,'Player history unavailable: '+error.message);$('playerHistoryCaption').textContent=playerName+' · unavailable'}}
-  async function loadTeam(){const id=$('team').value;if(!id){empty($('teamStats'),'Select a club to explore its season.');return}try{const [profile,response,formResponse]=await Promise.all([get('/teams/'+id),get('/teams/'+id+'/statistics?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season)),get('/teams/'+id+'/form?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season))]);const s=response.statistics||{};const target=$('teamStats');const grid=document.createElement('div');grid.className='metric-grid';[['Points',(3*(s.won||0)+(s.drawn||0))],['Played',s.played],['Goal difference',s.goal_difference]].forEach(([label,value])=>{const metric=document.createElement('div');metric.className='metric';const b=document.createElement('b');b.textContent=num(value);const span=document.createElement('span');span.textContent=label;metric.append(b,span);grid.append(metric)});const bars=document.createElement('div');bars.className='bars';const max=Math.max(1,s.played||0);[['Wins',s.won],['Draws',s.drawn],['Losses',s.lost]].forEach(([label,value])=>{const line=document.createElement('div');line.className='bar-row';const name=document.createElement('span');name.textContent=label;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=(100*(value||0)/max)+'%';bar.append(fill);const count=document.createElement('b');count.textContent=num(value);line.append(name,bar,count);bars.append(line)});const form=document.createElement('div');form.className='form';(formResponse.form||[]).forEach(result=>{const badge=document.createElement('i');badge.className=result.outcome;badge.textContent=result.outcome;badge.title=result.opponent_name+' · '+result.goals_for+'–'+result.goals_against;form.append(badge)});const caption=document.createElement('p');caption.className='subtle';caption.textContent='Recent form';const profileText=textElement('p','subtle',[profile.country_name,profile.founded_year?'Founded '+profile.founded_year:null,profile.venue_name,profile.venue_city].filter(Boolean).join(' · ')||'Club profile details are limited');target.replaceChildren(profileText,grid,bars,caption,form)}catch(error){showError($('teamStats'),error.message)}}
+  async function loadPlayerHistory(playerId,playerName){
+    state.selectedPlayer=playerId;
+    state.selectedPlayerName=playerName;
+    $('playerHistoryCaption').textContent=playerName+' · loading';
+    const careerTarget=$('playerCareer');
+    const target=$('playerHistory');
+    try{
+      const [career,result]=await Promise.all([
+        get('/players/'+encodeURIComponent(playerId)+'/career'),
+        get('/players/'+encodeURIComponent(playerId)+'/matches?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season)+'&limit=50')
+      ]);
+      const totals=career.totals||{};
+      const careerGrid=document.createElement('div');
+      careerGrid.className='metric-grid';
+      [['Appearances',totals.appearances],['Starts',totals.starts],['Goals',totals.goals],['Assists',totals.assists]].forEach(([label,value])=>{
+        const metric=document.createElement('div');
+        metric.className='metric';
+        metric.append(textElement('b','',num(value)),textElement('span','',label));
+        careerGrid.append(metric);
+      });
+      const clubs=document.createElement('div');
+      clubs.className='bars';
+      (career.clubs||[]).forEach(club=>{
+        const row=document.createElement('div');
+        row.className='bar-row';
+        row.style.gridTemplateColumns='minmax(0,1fr) auto';
+        const periods=(club.membership_periods||[]).map(period=>(period.joined_on||'Unknown start')+' – '+(period.left_on||'Present')).join('; ');
+        const detail=textElement('span','',club.team_name+' · '+(periods||'Membership dates unavailable'));
+        const stats=textElement('b','',num(club.appearances)+' apps · '+num(club.goals)+' goals · '+num(club.assists)+' assists');
+        row.append(detail,stats);
+        clubs.append(row);
+      });
+      if(!(career.clubs||[]).length)clubs.append(textElement('p','subtle','No historical club memberships are recorded.'));
+      const coverage=textElement('p','subtle',career.provider_identity_linked
+        ? num(career.coverage?.mapped_participations)+' linked participations · '+num(career.coverage?.unattributed_events)+' unattributed events'
+        : 'Provider identity is not linked; membership history is shown without provider statistics.');
+      careerTarget.replaceChildren(careerGrid,clubs,coverage);
+      if(!result.items?.length){
+        empty(target,'No provider-confirmed match history is available for this player in the selected season.');
+        $('playerHistoryCaption').textContent=playerName+' · '+num(result.total)+' match records';
+        return;
+      }
+      const table=document.createElement('table');
+      const head=document.createElement('thead');
+      const header=document.createElement('tr');
+      ['Match','Status','G','A','YC','RC'].forEach(label=>{
+        const th=document.createElement('th');
+        th.textContent=label;
+        header.append(th);
+      });
+      head.append(header);
+      const body=document.createElement('tbody');
+      result.items.forEach(item=>{
+        const row=document.createElement('tr');
+        const match=cell(row,item.home_team_name+' '+(item.home_score??'—')+'–'+(item.away_score??'—')+' '+item.away_team_name,'team');
+        match.title=fmtDate(item.kickoff_at)+' · '+(item.round_name||item.status);
+        cell(row,item.appeared?(item.started?'Started':'Appeared'):'Selected · unused');
+        cell(row,num(item.goals));
+        cell(row,num(item.assists));
+        cell(row,num(item.yellow_cards));
+        cell(row,num(item.red_cards));
+        body.append(row);
+      });
+      table.append(head,body);
+      const wrap=document.createElement('div');
+      wrap.className='table-wrap';
+      wrap.append(table);
+      target.replaceChildren(wrap);
+      $('playerHistoryCaption').textContent=playerName+' · '+num(result.total)+' matches · minutes unavailable';
+    }catch(error){
+      showError(careerTarget,'Player career unavailable: '+error.message);
+      showError(target,'Player history unavailable: '+error.message);
+      $('playerHistoryCaption').textContent=playerName+' · unavailable';
+    }
+  }
+  async function loadTeam(){
+    const id=$('team').value;
+    if(!id){
+      empty($('teamStats'),'Select a club to explore its season.');
+      empty($('teamContributions'),'Select a club to see historical player contributions.');
+      return;
+    }
+    try{
+      const metric=$('teamContributionMetric').value||'goals';
+      const [profile,response,formResponse,contributions]=await Promise.all([
+        get('/teams/'+id),
+        get('/teams/'+id+'/statistics?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season)),
+        get('/teams/'+id+'/form?competition_id='+encodeURIComponent(state.competition)+'&season_id='+encodeURIComponent(state.season)),
+        get('/teams/'+id+'/player-contributions?metric='+encodeURIComponent(metric)+'&limit=20')
+      ]);
+      const s=response.statistics||{};
+      const target=$('teamStats');
+      const grid=document.createElement('div');
+      grid.className='metric-grid';
+      [['Points',(3*(s.won||0)+(s.drawn||0))],['Played',s.played],['Goal difference',s.goal_difference]].forEach(([label,value])=>{
+        const metric=document.createElement('div');
+        metric.className='metric';
+        const b=document.createElement('b');
+        b.textContent=num(value);
+        const span=document.createElement('span');
+        span.textContent=label;
+        metric.append(b,span);
+        grid.append(metric);
+      });
+      const bars=document.createElement('div');
+      bars.className='bars';
+      const max=Math.max(1,s.played||0);
+      [['Wins',s.won],['Draws',s.drawn],['Losses',s.lost]].forEach(([label,value])=>{
+        const line=document.createElement('div');
+        line.className='bar-row';
+        const name=document.createElement('span');
+        name.textContent=label;
+        const bar=document.createElement('div');
+        bar.className='bar';
+        const fill=document.createElement('i');
+        fill.style.width=(100*(value||0)/max)+'%';
+        bar.append(fill);
+        const count=document.createElement('b');
+        count.textContent=num(value);
+        line.append(name,bar,count);
+        bars.append(line);
+      });
+      const form=document.createElement('div');
+      form.className='form';
+      (formResponse.form||[]).forEach(result=>{
+        const badge=document.createElement('i');
+        badge.className=result.outcome;
+        badge.textContent=result.outcome;
+        badge.title=result.opponent_name+' · '+result.goals_for+'–'+result.goals_against;
+        form.append(badge);
+      });
+      const caption=textElement('p','subtle','Recent form');
+      const profileText=textElement('p','subtle',[profile.country_name,profile.founded_year?'Founded '+profile.founded_year:null,profile.venue_name,profile.venue_city].filter(Boolean).join(' · ')||'Club profile details are limited');
+      target.replaceChildren(profileText,grid,bars,caption,form);
+
+      const contributionTarget=$('teamContributions');
+      if(!contributions.items?.length){
+        empty(contributionTarget,'No provider-linked player contributions are available for this club yet.');
+      }else{
+        const coverage=textElement('p','subtle',num(contributions.linked_players)+' linked players · '+num(contributions.unlinked_provider_players)+' provider identities not linked');
+        const table=document.createElement('table');
+        const head=document.createElement('thead');
+        const header=document.createElement('tr');
+        ['#','Player','Apps','Starts','Goals','Assists'].forEach(label=>{
+          const th=document.createElement('th');
+          th.textContent=label;
+          header.append(th);
+        });
+        head.append(header);
+        const body=document.createElement('tbody');
+        contributions.items.forEach(item=>{
+          const row=document.createElement('tr');
+          cell(row,String(item.rank),'rank');
+          const name=cell(row,'','team');
+          const membership=document.createElement('span');
+          membership.textContent=item.player_name+(item.membership_confirmed?'':' · registration unconfirmed');
+          name.append(membership);
+          cell(row,num(item.appearances));
+          cell(row,num(item.starts));
+          cell(row,num(item.goals));
+          cell(row,num(item.assists));
+          body.append(row);
+        });
+        table.append(head,body);
+        const wrap=document.createElement('div');
+        wrap.className='table-wrap';
+        wrap.append(table);
+        contributionTarget.replaceChildren(coverage,wrap);
+      }
+    }catch(error){
+      showError($('teamStats'),error.message);
+      showError($('teamContributions'),'Player contributions unavailable: '+error.message);
+    }
+  }
   init();
 })();
 </script>
