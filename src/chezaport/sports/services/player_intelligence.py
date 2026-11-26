@@ -220,12 +220,14 @@ async def build_player_career(
             ).all()
             team_external_to_id = {row.external_id: row.entity_id for row in team_mappings}
 
-        for row, fixture, _, _ in participation_rows:
+        for row, fixture, competition_name, season_name in participation_rows:
             team_id = team_external_to_id.get(row.team_external_id or "")
             if team_id is None:
                 team_id = _infer_membership_team(
                     fixture, fixture.kickoff_at.date(), memberships_by_team
                 )
+            if team_id not in {fixture.home_team_id, fixture.away_team_id}:
+                team_id = None
             if team_id is None:
                 unattributed_participations += 1
                 continue
@@ -237,8 +239,8 @@ async def build_player_career(
             _new_stats(team_stats, team_id).add_participation(row)
             _new_stats(competition_stats, (team_id, fixture.competition_id, fixture.season_id)).add_participation(row)
             competition_names[(team_id, fixture.competition_id, fixture.season_id)] = (
-                _,
-                _,
+                competition_name,
+                season_name,
             )
             total_stats.add_participation(row)
             mapped_participations += 1
@@ -257,6 +259,8 @@ async def build_player_career(
                 team_id = _infer_membership_team(
                     fixture, fixture.kickoff_at.date(), memberships_by_team
                 )
+            if team_id not in {fixture.home_team_id, fixture.away_team_id}:
+                team_id = None
             if team_id is None:
                 unattributed_events += 1
                 continue
@@ -366,12 +370,15 @@ async def build_team_player_contributions(
     provider: str = DEFAULT_PROVIDER,
 ) -> dict[str, Any]:
     """Aggregate provider-confirmed player contributions for one canonical team."""
+    team = await session.get(Team, team_id)
     memberships = list(
         (
             await session.scalars(
                 select(TeamMembership)
                 .where(TeamMembership.team_id == team_id)
-                .order_by(TeamMembership.joined_on.asc().nullsfirst(), Player.id.asc())
+                .order_by(
+                    TeamMembership.joined_on.asc().nullsfirst(), TeamMembership.player_id.asc()
+                )
             )
         ).all()
     )
@@ -522,7 +529,7 @@ async def build_team_player_contributions(
             for row in periods
         ]
         for membership in membership_reads:
-            membership["team_name"] = player_id and team_id
+            membership["team_name"] = team.name if team is not None else ""
         items.append(
             {
                 "player_id": player_id,
