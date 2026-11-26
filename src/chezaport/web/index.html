@@ -133,7 +133,7 @@
       const totals=career.totals||{};
       const careerGrid=document.createElement('div');
       careerGrid.className='metric-grid';
-      [['Appearances',totals.appearances],['Starts',totals.starts],['Goals',totals.goals],['Assists',totals.assists]].forEach(([label,value])=>{
+      [['Appearances',totals.appearances],['Starts',totals.starts],['Goals',totals.goals],['Assists',totals.assists],['Yellow cards',totals.yellow_cards],['Red cards',totals.red_cards]].forEach(([label,value])=>{
         const metric=document.createElement('div');
         metric.className='metric';
         metric.append(textElement('b','',num(value)),textElement('span','',label));
@@ -146,9 +146,13 @@
         row.className='bar-row';
         row.style.gridTemplateColumns='minmax(0,1fr) auto';
         const periods=(club.membership_periods||[]).map(period=>(period.joined_on||'Unknown start')+' – '+(period.left_on||'Present')).join('; ');
+        const info=document.createElement('div');
         const detail=textElement('span','',club.team_name+' · '+(periods||'Membership dates unavailable'));
-        const stats=textElement('b','',num(club.appearances)+' apps · '+num(club.goals)+' goals · '+num(club.assists)+' assists');
-        row.append(detail,stats);
+        const seasons=(club.competitions||[]).map(item=>item.competition_name+' '+item.season_name+' · '+num(item.appearances)+' apps · '+num(item.goals)+' goals').join(' | ');
+        const seasonDetail=textElement('small','subtle',seasons||'No competition-level records available');
+        info.append(detail,seasonDetail);
+        const stats=textElement('b','',num(club.appearances)+' apps · '+num(club.goals)+' goals · '+num(club.assists)+' assists · '+num(club.yellow_cards)+' YC · '+num(club.red_cards)+' RC');
+        row.append(info,stats);
         clubs.append(row);
       });
       if(!(career.clubs||[]).length)clubs.append(textElement('p','subtle','No historical club memberships are recorded.'));
