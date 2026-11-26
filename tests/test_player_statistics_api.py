@@ -195,17 +195,21 @@ def test_player_statistics_aggregate_report_events_without_counting_bench_only(t
     assert history.status_code == 200
     history_data = history.json()
     assert history_data["provider_identity_linked"] is True
-    assert history_data["total"] == 1
-    assert len(history_data["items"]) == 1
-    match = history_data["items"][0]
-    assert match["appeared"] is True
-    assert match["started"] is True
-    assert match["goals"] == 2
-    assert match["yellow_cards"] == 1
-    assert match["red_cards"] == 1
-    assert match["minutes_played"] is None
-    assert history_page.json()["total"] == 1
+    assert history_data["total"] == 2
+    assert len(history_data["items"]) == 2
+    matches_by_id = {item["fixture_id"]: item for item in history_data["items"]}
+    started_match = next(item for item in history_data["items"] if item["started"])
+    bench_match = next(item for item in history_data["items"] if not item["started"])
+    assert started_match["appeared"] is True
+    assert started_match["goals"] == 2
+    assert started_match["yellow_cards"] == 1
+    assert started_match["red_cards"] == 1
+    assert started_match["minutes_played"] is None
+    assert bench_match["appeared"] is False
+    assert bench_match["goals"] == 0
+    assert history_page.json()["total"] == 2
     assert len(history_page.json()["items"]) == 1
+    assert history_page.json()["items"][0]["fixture_id"] in matches_by_id
     assert unlinked_history.status_code == 200
     assert unlinked_history.json()["provider_identity_linked"] is False
     assert unlinked_history.json()["items"] == []
