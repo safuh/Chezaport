@@ -79,9 +79,14 @@ factually correct.
   frontend is introduced, set only its exact HTTPS origin.
 - Keep provider credentials server-side. Do not expose them through API
   responses, HTML, JavaScript, logs, or screenshots.
-- The current API is read-only for public visitors. Never add public ingestion,
-  sync-trigger, data-editing, or administrative routes without authentication,
-  authorization, rate limiting, and audit logging.
+- The public API is read-only. Aggregate data freshness and data-quality
+  summaries are public; sync history, issue details, reconciliation previews,
+  and explicit match-report refresh require a validated sync-operator token.
+- This first deployment intentionally does not configure visitor JWT
+  authentication. Protected operator routes therefore fail closed until a
+  separate operator-authentication policy is deliberately configured.
+- Never add public ingestion, sync-trigger, data-editing, or administrative
+  routes without authentication, authorization, rate limiting, and audit logging.
 - Configure a custom domain and verify HTTPS before promotion.
 - Add edge-level request rate limiting and abuse protection before broad public
   traffic. Monitor 4xx/5xx rates, latency, database connections, provider quota,
