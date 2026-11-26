@@ -1151,6 +1151,7 @@ async def get_player_match_history(
                 )
             ).all()
         )
+        backfilled = False
         for snapshot in cached_snapshots:
             event_exists = await session.scalar(
                 select(FixtureMatchEvent.id)
@@ -1175,7 +1176,10 @@ async def get_player_match_history(
                     fixture_id=snapshot.fixture_id,
                     report=ProviderMatchDetails.model_validate(snapshot.payload),
                 )
-        await session.flush()
+                backfilled = True
+        if backfilled:
+            # Persist the one-time lazy materialization; closing this request session rolls back.
+            await session.commit()
 
     fixture_statement = select(Fixture).where(
         Fixture.id.in_(
@@ -1386,7 +1390,8 @@ async def get_player_statistics(
                 )
                 backfilled = True
         if backfilled:
-            await session.flush()
+            # Persist the one-time lazy materialization; closing this request session rolls back.
+            await session.commit()
         event_rows = list(
             (
                 await session.scalars(
