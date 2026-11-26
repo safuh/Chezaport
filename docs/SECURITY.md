@@ -67,13 +67,15 @@ This is a focused application threat model, not a complete infrastructure threat
 
 ## Controls intentionally outside this milestone
 
-The backbone currently does not provide a complete abuse-prevention or authorization policy. These remain explicit follow-up controls:
+The platform now provides persisted viewer/operator/admin roles and database-backed
+checks for operator synchronization and administrator user management. These
+are application-level roles, not a complete OAuth2 scope/permission framework.
+The following remain explicit release controls:
 
-- RBAC and OAuth2 scopes.
-- Rate limiting and abuse controls.
-- OpenTelemetry and metrics.
-- Structured identity audit events.
-- Secret scanning and SBOM/release provenance.
+- Rate limiting, login abuse controls, and account recovery workflows.
+- OpenTelemetry, service metrics, and operational alerting.
+- Durable centralized audit retention beyond structured application logs.
+- Secret scanning, SBOM generation, and release provenance.
 
 These controls should be implemented and verified before making stronger production-security claims for applications that require them.
 

@@ -25,3 +25,15 @@ def test_liveness_does_not_require_database() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_jwt_secret_composes_auth_and_database_backed_role_validators() -> None:
+    settings = Settings.for_profile("test").model_copy(
+        update={"jwt_secret_key": "a-high-entropy-test-secret-with-32-plus-chars"}
+    )
+    app = create_app(settings)
+
+    with TestClient(app):
+        assert callable(app.state.auth_application_factory)
+        assert callable(app.state.sync_operator_token_validator)
+        assert callable(app.state.admin_token_validator)

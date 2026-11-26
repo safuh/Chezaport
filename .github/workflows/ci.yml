@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: backbone
+          POSTGRES_USER: backbone
+          POSTGRES_PASSWORD: backbone
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U backbone -d backbone"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://backbone:backbone@localhost:5432/backbone
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check dashboard JavaScript syntax
+        if: matrix.python-version == '3.13'
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          html = Path("src/chezaport/web/index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, re.IGNORECASE | re.DOTALL)
+          if len(scripts) != 1:
+              raise SystemExit(f"Expected one inline dashboard script, found {len(scripts)}")
+          Path("/tmp/chezaport-dashboard.js").write_text(scripts[0], encoding="utf-8")
+          PY
+          node --check /tmp/chezaport-dashboard.js
+
+      - name: Type check
+        run: uv run mypy src
+
+      - name: Audit runtime dependencies
+        run: |
+          uv export --locked --no-dev --no-emit-project --format requirements-txt > /tmp/chezaport-requirements.txt
+          uv run --extra dev pip-audit --strict --vulnerability-service osv --requirement /tmp/chezaport-requirements.txt
+
+      - name: Test (SQLite and PostgreSQL)
+        run: uv run pytest
+
+      - name: Build and validate package
+        run: |
+          uv build
+          uv run twine check dist/*
+
+  container-smoke:
+    name: PostgreSQL + Docker Compose smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build and smoke test containers
+        run: make docker-test

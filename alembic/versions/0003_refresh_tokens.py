@@ -25,12 +25,8 @@ def upgrade() -> None:
         sa.Column("revoked", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.PrimaryKeyConstraint("token_id"),
     )
-    op.create_index(
-        "ix_refresh_tokens_subject", "refresh_tokens", ["subject"], unique=False
-    )
-    op.create_index(
-        "ix_refresh_tokens_expires_at", "refresh_tokens", ["expires_at"], unique=False
-    )
+    op.create_index("ix_refresh_tokens_subject", "refresh_tokens", ["subject"], unique=False)
+    op.create_index("ix_refresh_tokens_expires_at", "refresh_tokens", ["expires_at"], unique=False)
 
 
 def downgrade() -> None:

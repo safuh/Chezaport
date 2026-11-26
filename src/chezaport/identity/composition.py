@@ -53,6 +53,7 @@ def create_sqlalchemy_auth_application(
         refresh_token_store=refresh_store,
         access_token_lifetime=access_token_lifetime,
         refresh_token_lifetime=refresh_token_lifetime,
+        role_resolver=user_repository.get_role,
     )
 
     return AuthenticationApplication(

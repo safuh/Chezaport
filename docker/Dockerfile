@@ -8,7 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_NO_DEV=1 \
     UV_LINK_MODE=copy \
     VIRTUAL_ENV=/app/.venv \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH=/app/src
 
 COPY --from=builder /uv /uvx /bin/
 
@@ -21,8 +22,7 @@ RUN uv sync --locked --no-dev --no-install-project --no-editable
 COPY src ./src
 COPY alembic ./alembic
 
-RUN uv sync --locked --no-dev --no-editable \
-    && chown -R app:app /app
+RUN chown -R app:app /app
 
 USER app
 EXPOSE 8000

@@ -1,0 +1,21 @@
+"""Version 1 public API router.
+
+Feature routers are registered here as the sports domain is implemented.
+Keeping the version boundary explicit allows the existing foundation routes
+and future public contracts to evolve without breaking clients.
+"""
+
+from fastapi import APIRouter
+
+from chezaport.identity.admin_api import router as admin_router
+from chezaport.sports.api import router as sports_router
+
+router = APIRouter(prefix="/v1", tags=["API v1"])
+router.include_router(sports_router)
+router.include_router(admin_router)
+
+
+@router.get("/", summary="API version information")
+async def get_api_version() -> dict[str, str]:
+    """Return a small discovery response for clients using this API version."""
+    return {"name": "Chezaport API", "version": "v1"}

@@ -8,6 +8,7 @@ def make_settings() -> Settings:
     return Settings(
         database_url="sqlite+aiosqlite:///:memory:",
         cors_origins=["https://example.com"],
+        _env_file=None,
     )
 
 
@@ -17,6 +18,20 @@ def test_health_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_security_headers_are_applied_to_public_responses() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        api_response = client.get("/api/health")
+        dashboard_response = client.get("/")
+
+    assert api_response.headers["X-Content-Type-Options"] == "nosniff"
+    assert api_response.headers["X-Frame-Options"] == "DENY"
+    assert api_response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert api_response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+    assert api_response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+    assert api_response.headers["Cross-Origin-Resource-Policy"] == "same-origin"
+    assert "frame-ancestors 'none'" in dashboard_response.headers["Content-Security-Policy"]
 
 
 def test_request_id_is_generated_and_returned() -> None:
@@ -64,3 +79,60 @@ def test_cors_policy_is_explicit() -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://example.com"
+
+
+def test_versioned_api_discovery_endpoint() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        response = client.get("/api/v1/")
+
+    assert response.status_code == 200
+    assert response.json() == {"name": "Chezaport API", "version": "v1"}
+
+
+def test_admin_api_fails_closed_when_authorization_is_not_configured() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        response = client.get("/api/v1/admin/users")
+
+    assert response.status_code == 503
+
+
+def test_admin_api_requires_bearer_access_token() -> None:
+    async def allow_admin(_: str) -> bool:
+        return True
+
+    with TestClient(create_app(make_settings(), admin_token_validator=allow_admin)) as client:
+        response = client.get("/api/v1/admin/users")
+
+    assert response.status_code == 401
+
+
+def test_admin_api_rejects_non_admin_token() -> None:
+    async def deny_admin(_: str) -> bool:
+        return False
+
+    with TestClient(create_app(make_settings(), admin_token_validator=deny_admin)) as client:
+        response = client.get(
+            "/api/v1/admin/users", headers={"Authorization": "Bearer viewer-token"}
+        )
+
+    assert response.status_code == 403
+
+
+def test_dashboard_is_served_from_application_root() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Chezaport" in response.text
+    assert "League table" in response.text
+    assert "fixtures" in response.text
+
+
+def test_dashboard_is_same_origin_and_contains_no_external_runtime_dependencies() -> None:
+    with TestClient(create_app(make_settings())) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert "fetch(API+path" in response.text
+    assert "https://cdn" not in response.text
+    assert "betting" not in response.text.lower()

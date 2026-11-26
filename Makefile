@@ -1,7 +1,13 @@
-.PHONY: install test lint typecheck check run prod migrate migrate-up migrate-down migrate-current migrate-history docker-up docker-down docker-test docker-prod
+.PHONY: install format format-check test lint typecheck check run prod migrate migrate-up migrate-down migrate-current migrate-history docker-up docker-down docker-test docker-staging docker-prod audit
 
 install:
-	uv sync --extra dev
+	uv sync --locked --extra dev
+
+format:
+	uv run ruff format .
+
+format-check:
+	uv run ruff format --check .
 
 test:
 	uv run pytest
@@ -12,7 +18,11 @@ lint:
 typecheck:
 	uv run mypy src
 
-check: lint typecheck test
+check: format-check lint typecheck test
+
+audit:
+	uv export --locked --no-dev --no-emit-project --format requirements-txt > /tmp/chezaport-requirements.txt
+	uv run --extra dev pip-audit --strict --vulnerability-service osv --requirement /tmp/chezaport-requirements.txt
 
 run:
 	uv run uvicorn chezaport.app:create_app --factory --reload --host 127.0.0.1 --port 8000
@@ -42,6 +52,9 @@ docker-down:
 
 docker-test:
 	bash scripts/docker-smoke.sh
+
+docker-staging:
+	bash scripts/docker-staging.sh
 
 docker-prod:
 	bash scripts/docker-production.sh

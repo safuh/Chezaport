@@ -79,6 +79,4 @@ async def test_login_preserves_authentication_failure_contract() -> None:
     )
 
     with pytest.raises(AuthenticationError, match="Invalid credentials"):
-        await service.login(
-            LoginRequest(identifier="alice@example.com", password="wrong password")
-        )
+        await service.login(LoginRequest(identifier="alice@example.com", password="wrong password"))

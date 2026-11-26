@@ -42,9 +42,7 @@ class SqlAlchemyRefreshTokenStore(RefreshTokenStore):
             )
         )
 
-    async def consume(
-        self, token_id: UUID, subject: str
-    ) -> RefreshTokenRecord | None:
+    async def consume(self, token_id: UUID, subject: str) -> RefreshTokenRecord | None:
         """Atomically consume a valid, unexpired token for its subject."""
         now = datetime.now(UTC)
         result = cast(

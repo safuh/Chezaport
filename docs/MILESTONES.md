@@ -1,111 +1,131 @@
-# MVP Acceptance Tracker
+# MVP acceptance tracker
 
-This tracker describes the supported Chezaport MVP. A checkbox means the criterion has been verified; implementation alone is not verification.
+A checkbox is marked only after the criterion is implemented and verified. This
+tracker is intentionally stricter than a feature checklist.
 
-## Product scope
+## Product boundary
 
-**Included:** FastAPI, Pydantic/Pydantic Settings, SQLAlchemy 2.x, Alembic, PostgreSQL, optional JWT identity, Docker, Docker Compose, Kubernetes/Kustomize.
+**Included:** Python/FastAPI backend, Pydantic v2, SQLAlchemy 2.x, Alembic,
+SQLite local development, PostgreSQL staging/production, provider-neutral sports
+domain and ingestion, football read API/analytics, optional identity, Docker
+image, and Compose deployment scripts.
 
-**Excluded:** PydanticAI, AI agents/providers, Flutter/mobile clients, frontend, project generator/CLI, and product-specific business modules.
+**Excluded from this MVP:** web/mobile frontend, AI features, PydanticAI, Flutter,
+Redis, message brokers, microservices, and Kubernetes. A Kubernetes deployment
+can be added later if the selected hosting environment requires it.
 
 ## M1 — Application foundation
 
 **Status: complete and verified.**
 
 - [x] Python src-layout package and application factory.
-- [x] Development, test, and production configuration profiles.
-- [x] Pydantic Settings validation and environment overrides.
+- [x] Development, test, staging, and production settings profiles.
 - [x] FastAPI exception handling and stable error envelope.
-- [x] Request correlation IDs in middleware and response headers.
-- [x] Structured logging.
+- [x] Request correlation IDs and structured logging.
 - [x] Explicit CORS configuration.
 - [x] Liveness and database-backed readiness endpoints.
 - [x] Deterministic application lifespan and engine disposal.
 
 ## M2 — Persistence and migrations
 
-**Status: complete and verified.**
+**Status: implemented; SQLite verified, PostgreSQL release gate pending.**
 
-- [x] Async SQLAlchemy 2.x engine and session factory.
-- [x] PostgreSQL/asyncpg production driver.
-- [x] SQLite/aiosqlite development and test driver.
-- [x] Transaction-scoped session helper.
-- [x] Explicit Unit of Work transaction boundary.
+- [x] Async SQLAlchemy engine and session factory.
+- [x] SQLite/aiosqlite and PostgreSQL/asyncpg drivers.
+- [x] Transaction-scoped session helper and Unit of Work.
 - [x] Async Alembic environment.
-- [x] Versioned foundation and identity migrations.
-- [x] Migration upgrade/downgrade integration tests.
-- [x] PostgreSQL integration test in CI.
-- [x] Explicit migration-before-rollout deployment contract.
+- [x] Versioned identity and sports migrations.
+- [x] SQLite schema creation and migration tests.
+- [ ] PostgreSQL migration upgrade/downgrade verified in the current release run.
 
 ## M3 — Optional identity and JWT
 
-**Status: implemented and verified; consumers must explicitly configure it.**
+**Status: implemented and covered by automated tests; not enabled by default.**
 
-- [x] Password hashing with Argon2.
-- [x] Generic invalid-credential behavior.
-- [x] Signed JWT access and refresh tokens.
-- [x] Token expiration, subject, and token-type validation.
-- [x] Refresh-token persistence, rotation, replay rejection, and revocation.
+- [x] Argon2 password hashing and generic invalid-credential behavior.
+- [x] Signed access/refresh JWT validation and expiration.
+- [x] Persistent refresh-token rotation, replay rejection, and revocation.
 - [x] Registration, login, refresh, and logout HTTP endpoints.
-- [x] Structured authentication audit events.
-- [x] SQLAlchemy identity repositories and composition helper.
-- [x] Security regression and integration tests.
-- [ ] RBAC/OAuth2 scopes — intentionally excluded from MVP.
-- [ ] Built-in rate limiting — intentionally excluded; apply at the edge or in the consuming application.
+- [x] Authentication audit events and SQLAlchemy composition helper.
+- [ ] Product-specific roles/scopes and rate limiting remain outside this MVP.
 
-Authentication remains optional at the composition root. Production applications must provide high-entropy signing secrets and deliberate token lifetimes.
+Authentication endpoints intentionally return 503 until the consumer composes
+an authentication application with real signing secrets and persistence.
 
-## M4 — Docker and local development
+## M4 — Sports domain and ingestion foundation
 
-**Status: complete and verified.**
+**Status: provider-neutral foundation implemented; live provider integration pending.**
 
-- [x] Locked dependency installation using uv.lock.
-- [x] Non-root runtime container.
-- [x] Production Dockerfile.
-- [x] PostgreSQL-backed development Compose stack.
-- [x] Container health check.
-- [x] Production Compose definition with external database credentials.
-- [x] Explicit one-shot Alembic migration before API startup.
-- [x] Docker smoke-test script.
-- [x] Docker smoke test passes on the release branch.
+- [x] Sport, country, venue, competition, season, team, player, membership,
+  fixture, and external-ID mapping models.
+- [x] Normalized Pydantic provider schemas and async provider protocol.
+- [x] Provider capability declarations and competition-aware routing.
+- [x] External-ID resolution and transaction-safe, idempotent ingestion.
+- [x] Bounded retry policy with Retry-After handling.
+- [x] Canonical football bootstrap command.
+- [ ] A live provider adapter and scheduled synchronization workflow.
+- [ ] Owner approval, credentials, quota/freshness verification, attribution,
+  and redistribution rights for the chosen competition data provider.
 
-## M5 — Kubernetes deployment
+The EPL/football-data.org pilot is not enabled until its use and redistribution
+terms are confirmed. CI must remain network- and credential-independent.
 
-**Status: complete and verified.**
+## M5 — Public sports API and analytics
 
-- [x] Canonical Kustomize base under k8s/base.
-- [x] API Deployment and ClusterIP Service.
-- [x] ConfigMap and non-committed Secret example.
-- [x] Liveness and readiness probes.
-- [x] Resource requests and limits.
-- [x] Explicit migration Job.
-- [x] Production overlay and migration overlay.
-- [x] Optional Ingress example.
-- [x] Optional HPA overlay.
-- [x] Rollout and rollback instructions.
-- [x] Production, migration, and HPA overlays render successfully in CI.
+**Status: implemented; automated contract tests added.**
+
+- [x] Versioned API discovery endpoint.
+- [x] Active sports and competition catalogue endpoints.
+- [x] Fixture filters and bounded offset pagination.
+- [x] Deterministic 3-1-0 standings from completed fixtures.
+- [x] Team recent form and head-to-head summaries.
+- [x] Analytics regression tests for scoring, form ordering, and unfinished
+  fixture exclusion.
+- [ ] Production query-plan review and larger-dataset performance benchmark.
+
+The current API is read-only. Canonical data enters through the ingestion
+service; authenticated operational write workflows are a later increment.
 
 ## M6 — Release verification
 
-**Status: complete and verified on the release candidate commit.**
+**Status: in progress.**
 
-- [x] Ruff passes.
-- [x] Mypy passes with no application errors.
-- [x] Full test suite passes on Python 3.11, 3.12, and 3.13.
-- [x] PostgreSQL integration and migration tests pass.
-- [x] Package build and Twine validation pass.
-- [x] Docker smoke test passes.
-- [x] Production, migration, and HPA Kustomize overlays render successfully.
-- [x] Secret scanning and dependency security workflows pass.
-- [x] Documentation commands match the actual repository.
-- [x] No PydanticAI, Flutter, or stale duplicate Kubernetes implementation remains.
+- [x] Ruff lint and repository formatting.
+- [x] Mypy application type check.
+- [x] SQLite unit/integration tests.
+- [x] API contract tests for catalogue, fixtures, standings, and form.
+- [ ] Full suite rerun after the latest changes.
+- [ ] PostgreSQL integration and migration upgrade/downgrade run.
+- [ ] Container build and end-to-end Compose smoke test.
+- [ ] Dependency audit, secret scan, package build, and release CI verification.
 
-## MVP release definition
+## M7 — Staging and production operations
 
-The MVP is ready for release when every M6 gate is green on the release commit. The release candidate CI run passed all test matrices, package checks, Docker smoke, Kubernetes rendering, secret scanning, and dependency audit.
+**Status: deployment assets implemented; real environment not provisioned.**
 
-The MVP does not promise that every consuming application is automatically production-secure. Applications must still configure secrets, TLS, database access, CORS, backups, monitoring, rate limits, and authorization policy for their deployment environment.
+- [x] Locked, non-root production Docker image.
+- [x] PostgreSQL-backed local Compose development stack.
+- [x] Separate staging and production settings validation.
+- [x] Staging/production Compose definitions with loopback-only binds.
+- [x] Explicit one-shot migrations before API rollout.
+- [x] Readiness-based deployment scripts and runbook.
+- [ ] Verify Compose build/smoke on a functioning container runtime.
+- [ ] Provision a staging host, managed PostgreSQL database, domain, TLS, and
+  deployment secrets.
+- [ ] Verify staging smoke tests and migration behavior against PostgreSQL.
+- [ ] Provision production infrastructure, encrypted backups, restore drills,
+  monitoring, edge rate limiting, and an operational rollback procedure.
+
+## Release definition
+
+The MVP is not declared production-ready merely because the application starts
+locally. Release requires all M6 gates to pass on the release commit, successful
+PostgreSQL migration and container smoke tests, and completed M7 infrastructure
+controls. A real hosted deployment cannot be performed until an infrastructure
+provider, database, domain, TLS/ingress, and protected secrets are provisioned.
 
 ## Change control
 
-Keep this project backend-focused. New features must not expand the MVP silently. PydanticAI, Flutter, frontend work, generators, RBAC, and observability extensions require a separate decision and acceptance criteria.
+Keep the initial release backend-focused. New features must not silently add
+paid provider dependencies, Redis, AI, frontend/mobile clients, or distributed
+services. Provider selection and public data rights require explicit review.

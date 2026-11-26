@@ -3,13 +3,14 @@
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Environment(StrEnum):
     DEVELOPMENT = "development"
     TEST = "test"
+    STAGING = "staging"
     PRODUCTION = "production"
 
 
@@ -41,6 +42,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_json: bool = False
     cors_origins: list[str] = Field(default_factory=list)
+    jwt_secret_key: str | None = Field(default=None, min_length=32)
+    access_token_minutes: int = Field(default=15, ge=1, le=1440)
+    refresh_token_days: int = Field(default=30, ge=1, le=365)
+    football_data_api_token: str | None = None
+    football_data_competition_codes: list[str] = Field(default_factory=lambda: ["PL"])
+    public_api_rate_limit_per_minute: int = Field(default=120, ge=1, le=10_000)
+    match_report_rate_limit_per_minute: int = Field(default=10, ge=1, le=1_000)
     cors_allow_credentials: bool = False
     cors_allow_methods: list[str] = Field(
         default_factory=lambda: [
@@ -56,13 +64,25 @@ class Settings(BaseSettings):
         default_factory=lambda: ["Authorization", "Content-Type", "X-Request-ID"]
     )
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_postgresql_url(cls, value: object) -> object:
+        """Normalize managed-host PostgreSQL URLs for the asyncpg driver."""
+        if isinstance(value, str):
+            if value.startswith("postgres://"):
+                return value.replace("postgres://", "postgresql+asyncpg://", 1)
+            if value.startswith("postgresql://"):
+                return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
+
     @model_validator(mode="after")
     def validate_profile(self) -> "Settings":
-        if self.environment is Environment.PRODUCTION:
+        if self.environment in (Environment.STAGING, Environment.PRODUCTION):
+            profile = self.environment.value
             if self.debug:
-                raise ValueError("debug must be false in production")
+                raise ValueError(f"debug must be false in {profile}")
             if not self.database_url.startswith("postgresql+asyncpg://"):
-                raise ValueError("production requires a PostgreSQL asyncpg DATABASE_URL")
+                raise ValueError(f"{profile} requires a PostgreSQL asyncpg DATABASE_URL")
             self.log_json = True
         if self.environment is Environment.TEST:
             self.debug = False
@@ -78,9 +98,10 @@ class Settings(BaseSettings):
                 database_url="sqlite+aiosqlite:///:memory:",
                 log_json=False,
             )
-        if environment is Environment.PRODUCTION:
+        if environment in (Environment.STAGING, Environment.PRODUCTION):
             return cls(
                 environment=environment,
+                debug=False,
                 database_url="postgresql+asyncpg://backbone:backbone@localhost:5432/backbone",
                 log_json=True,
             )

@@ -24,8 +24,7 @@ async def test_alembic_upgrade_and_downgrade() -> None:
         async with engine.connect() as connection:
             result = await connection.execute(
                 text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name = 'users'"
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'users'"
                 )
             )
             user_columns = {row[0] for row in result}
