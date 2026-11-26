@@ -14,12 +14,14 @@ SQLite (local) · PostgreSQL (staging/production) · Docker Compose.
   players, venues, memberships, fixtures, and provider ID mappings.
 - Provider-neutral normalized schemas, capability-based provider routing,
   bounded retry policy, and transaction-safe/idempotent ingestion services.
-- Versioned read API for sports, competitions, fixtures and match detail, standings, team form,
-  and head-to-head results, plus competition and team-season statistics and cross-season comparisons.
+- Versioned read API for competitions, fixtures, match reports, standings, team form,
+  head-to-head results, player career records, team player contributions, and
+  competition/player leaderboards.
 - Optional Argon2/JWT identity composition with registration, login, refresh
   rotation, logout, refresh-token revocation, and least-privilege viewer/operator/admin roles.
-- Responsive first-party dashboard for competition selection, season standings,
-  fixtures/results, scoring summaries, and team performance/form.
+- Responsive first-party dashboard for competition selection, standings,
+  fixtures/results, match-centre reports, team performance, player careers,
+  and historical team contribution rankings.
 - Health/readiness endpoints, correlation IDs, structured logging, migrations,
   and container deployment assets.
 
@@ -58,7 +60,8 @@ using persistent data. The default sports seed is idempotent.
 Open `http://127.0.0.1:8000/` after starting the API. The dashboard reads the
 same `/api/v1` endpoints documented below and includes competition/season
 selection, league standings, fixture/result filters, season scoring summaries,
-and team statistics with recent form. It is responsive and served from the
+team statistics with recent form, player career summaries, and team contribution
+rankings. It is responsive and served from the
 same origin, so a separate frontend server or CORS configuration is not needed
 for the standard local setup. If the database has no competition records, load
 approved provider data or the explicitly fictional demo dataset above.
@@ -77,7 +80,12 @@ All product endpoints are under `/api/v1`.
 | GET | `/seasons` | Competition seasons and current-season filter |
 | GET | `/players` | Player search by name, nationality, and position |
 | GET | `/players/{player_id}` | Player profile and historical team registrations |
+| GET | `/players/{player_id}/career` | Career totals and per-club competition/season records |
+| GET | `/players/{player_id}/statistics` | Player event and appearance totals |
+| GET | `/players/{player_id}/matches` | Paginated player match history |
 | GET | `/teams/{team_id}/squad` | Team registrations active on a requested date |
+| GET | `/teams/{team_id}/player-contributions` | Historical team player contribution rankings |
+| GET | `/competitions/{competition_id}/player-leaderboard?season_id=...` | Competition player rankings |
 | GET | `/fixtures` | Filtered fixtures with bounded pagination |
 | GET | `/fixtures/{fixture_id}` | Match detail with competition, season, team, and venue context |
 | GET | `/competitions/{competition_id}/statistics?season_id=...` | Scoring totals, averages, home/away outcomes, highest-scoring match |
@@ -144,10 +152,10 @@ creating the first administrator. See [security guidance](docs/SECURITY.md).
 
 ## Data providers
 
-The domain and ingestion services are provider-neutral. A read-only
-football-data.org v4 adapter is implemented with normalized competition, season,
-team, and fixture mapping, typed rate-limit/error handling, and mocked HTTP
-contract tests. The adapter is not enabled by default; configure
+The domain and ingestion services are provider-neutral. A read-only upstream
+football-data.org v4 adapter is implemented with normalized competition,
+season, team, fixture, match-report, event, and player-participation data,
+typed rate-limit/error handling, and mocked HTTP contract tests. The adapter is not enabled by default; configure
 `FOOTBALL_DATA_API_TOKEN` and `FOOTBALL_DATA_COMPETITION_CODES` in a protected
 runtime environment to register its competition routes. No token is needed for
 local development or CI. To obtain the provider token, the project owner should create an application
@@ -165,11 +173,13 @@ FOOTBALL_DATA_API_TOKEN=replace_with_the_private_token
 FOOTBALL_DATA_COMPETITION_CODES=["PL"]
 ```
 
-The token is never committed or delivered to the browser. The provider's free
-plan currently lists delayed scores and a 10-requests-per-minute limit; live
-scores require a plan that explicitly includes live-score access. Do not label
-delayed free-plan scores as real-time. Confirm coverage and display/attribution
-rights for the exact competitions before public launch.
+The token is never committed or delivered to the browser. The provider's basic Free
+tier lists fixtures, schedules, league tables, delayed scores, and a 10-requests-
+per-minute limit. Detailed match reports, lineups, substitutions, scorers,
+bookings/cards, and squads require a Deep Data entitlement. Live scores also
+require a plan that explicitly includes live-score access. Do not label delayed
+scores as real-time. Confirm data entitlement, commercial display/redistribution,
+and attribution rights for the exact competitions before public launch.
 
 After verifying the provider's terms for the intended use, run a one-shot,
 idempotent local sync with:
