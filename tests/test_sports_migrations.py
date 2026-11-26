@@ -29,6 +29,12 @@ async def test_alembic_migrations_create_sports_schema(tmp_path: Path) -> None:
             tables = await connection.run_sync(
                 lambda sync_connection: set(inspect(sync_connection).get_table_names())
             )
+            indexes = await connection.run_sync(
+                lambda sync_connection: {
+                    table: {index["name"] for index in inspect(sync_connection).get_indexes(table)}
+                    for table in ("fixture_match_events", "fixture_player_participation")
+                }
+            )
         assert {
             "sports",
             "countries",
@@ -48,6 +54,8 @@ async def test_alembic_migrations_create_sports_schema(tmp_path: Path) -> None:
             "refresh_tokens",
             "alembic_version",
         } <= tables
+        assert "ix_fixture_match_events_secondary_player" in indexes["fixture_match_events"]
+        assert "ix_fixture_player_participation_team" in indexes["fixture_player_participation"]
     finally:
         await engine.dispose()
 
