@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     refresh_token_days: int = Field(default=30, ge=1, le=365)
     football_data_api_token: str | None = None
     football_data_competition_codes: list[str] = Field(default_factory=lambda: ["PL"])
+    public_api_rate_limit_per_minute: int = Field(default=120, ge=1, le=10_000)
+    match_report_rate_limit_per_minute: int = Field(default=10, ge=1, le=1_000)
     cors_allow_credentials: bool = False
     cors_allow_methods: list[str] = Field(
         default_factory=lambda: [
