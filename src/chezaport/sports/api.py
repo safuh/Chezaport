@@ -1400,20 +1400,28 @@ async def get_player_statistics(
                 )
             ).all()
         )
-        appearances = len({row.fixture_id for row in participation_rows if row.appeared})
+        appearance_fixtures = {
+            row.fixture_id for row in participation_rows if row.appeared
+        }
         starts = len({row.fixture_id for row in participation_rows if row.is_starter})
         for event in event_rows:
             payload = event.payload
             if event.event_type == "goal":
-                goals += event.player_external_id == identity.external_id
-                assists += event.secondary_player_external_id == identity.external_id
+                is_scorer = event.player_external_id == identity.external_id
+                is_assister = event.secondary_player_external_id == identity.external_id
+                goals += is_scorer
+                assists += is_assister
+                if is_scorer or is_assister:
+                    appearance_fixtures.add(event.fixture_id)
             elif event.event_type == "booking" and event.player_external_id == identity.external_id:
+                appearance_fixtures.add(event.fixture_id)
                 card = str(payload.get("card", "")).lower()
                 yellow_cards += "yellow" in card
                 red_cards += "red" in card
             elif event.event_type == "substitution":
                 substitutions_in += event.player_external_id == identity.external_id
                 substitutions_out += event.secondary_player_external_id == identity.external_id
+        appearances = len(appearance_fixtures)
 
     return PlayerStatisticsRead(
         player_id=player_id,
@@ -1825,9 +1833,12 @@ async def competition_player_leaderboard(
         if event.event_type == "goal":
             if player_id in totals:
                 totals[player_id]["goals"] += 1
+                appeared_fixtures[player_id].add(event.fixture_id)
             if secondary_id in totals:
                 totals[secondary_id]["assists"] += 1
+                appeared_fixtures[secondary_id].add(event.fixture_id)
         elif event.event_type == "booking" and player_id in totals:
+            appeared_fixtures[player_id].add(event.fixture_id)
             card = str(event.payload.get("card", "")).lower()
             totals[player_id]["yellow_cards"] += "yellow" in card
             totals[player_id]["red_cards"] += "red" in card
