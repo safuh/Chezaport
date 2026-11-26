@@ -25,6 +25,8 @@ from chezaport.sports.models import (
     ExternalIDMapping,
     Fixture,
     FixtureReportSnapshot,
+    FixtureMatchEvent,
+    FixturePlayerParticipation,
     Player,
     Season,
     Sport,
@@ -33,6 +35,7 @@ from chezaport.sports.models import (
     TeamMembership,
     Venue,
 )
+from chezaport.sports.services.match_report_persistence import replace_canonical_fixture_report
 from chezaport.sports.services.analytics import (
     calculate_competition_season_comparison,
     calculate_competition_statistics,
@@ -1083,38 +1086,44 @@ async def get_player_statistics(
             ).all()
         )
 
-    appearances: set[str] = set()
-    starts: set[str] = set()
+    appearances = starts = 0
     goals = assists = yellow_cards = red_cards = substitutions_in = substitutions_out = 0
-    if identity is not None:
-        external_id = identity.external_id
-        for snapshot in snapshots:
-            report = ProviderMatchDetails.model_validate(snapshot.payload)
-            fixture_id = snapshot.fixture_id
-            for side in (report.home_team, report.away_team):
-                if any(person.external_id == external_id for person in side.lineup):
-                    starts.add(fixture_id)
-                    appearances.add(fixture_id)
-            player_substitutions_in = sum(
-                event.player_in_external_id == external_id for event in report.substitutions
-            )
-            player_substitutions_out = sum(
-                event.player_out_external_id == external_id for event in report.substitutions
-            )
-            substitutions_in += player_substitutions_in
-            substitutions_out += player_substitutions_out
-            if player_substitutions_in or player_substitutions_out:
-                appearances.add(fixture_id)
-            goals += sum(event.scorer_external_id == external_id for event in report.goals)
-            assists += sum(event.assist_external_id == external_id for event in report.goals)
-            yellow_cards += sum(
-                event.player_external_id == external_id and "yellow" in event.card.lower()
-                for event in report.bookings
-            )
-            red_cards += sum(
-                event.player_external_id == external_id and "red" in event.card.lower()
-                for event in report.bookings
-            )
+    if identity is not None and fixture_ids:
+        event_rows = list(
+            (
+                await session.scalars(
+                    select(FixtureMatchEvent).where(
+                        FixtureMatchEvent.provider == provider,
+                        FixtureMatchEvent.fixture_id.in_(fixture_ids),
+                    )
+                )
+            ).all()
+        )
+        participation_rows = list(
+            (
+                await session.scalars(
+                    select(FixturePlayerParticipation).where(
+                        FixturePlayerParticipation.provider == provider,
+                        FixturePlayerParticipation.fixture_id.in_(fixture_ids),
+                        FixturePlayerParticipation.player_external_id == identity.external_id,
+                    )
+                )
+            ).all()
+        )
+        appearances = len({row.fixture_id for row in participation_rows if row.appeared})
+        starts = len({row.fixture_id for row in participation_rows if row.is_starter})
+        for event in event_rows:
+            payload = event.payload
+            if event.event_type == "goal":
+                goals += event.player_external_id == identity.external_id
+                assists += event.secondary_player_external_id == identity.external_id
+            elif event.event_type == "booking" and event.player_external_id == identity.external_id:
+                card = str(payload.get("card", "")).lower()
+                yellow_cards += "yellow" in card
+                red_cards += "red" in card
+            elif event.event_type == "substitution":
+                substitutions_in += event.player_external_id == identity.external_id
+                substitutions_out += event.secondary_player_external_id == identity.external_id
 
     return PlayerStatisticsRead(
         player_id=player_id,
@@ -1123,8 +1132,8 @@ async def get_player_statistics(
         provider=provider,
         provider_identity_linked=identity is not None,
         fixtures_with_reports=len(snapshots),
-        appearances=len(appearances),
-        starts=len(starts),
+        appearances=appearances,
+        starts=starts,
         goals=goals,
         assists=assists,
         yellow_cards=yellow_cards,
@@ -1380,6 +1389,9 @@ async def get_fixture_report(
         snapshot.external_id = mapping.external_id
         snapshot.payload = payload
         snapshot.fetched_at = now
+    await replace_canonical_fixture_report(
+        session, provider=provider_name, fixture_id=fixture_id, report=report
+    )
     await session.commit()
     return report
 
