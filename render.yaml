@@ -12,7 +12,7 @@ services:
     preDeployCommand: alembic upgrade head
     healthCheckPath: /api/health/ready
     maxShutdownDelaySeconds: 120
-    autoDeployTrigger: commit
+    autoDeployTrigger: checksPass
     envVars:
       - key: APP_NAME
         value: ChezaPort
@@ -48,7 +48,7 @@ services:
     dockerContext: .
     dockerCommand: python -m chezaport.sports.sync --watch --interval-seconds 120
     maxShutdownDelaySeconds: 120
-    autoDeployTrigger: commit
+    autoDeployTrigger: checksPass
     envVars:
       - key: ENVIRONMENT
         value: production
