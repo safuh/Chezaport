@@ -52,10 +52,16 @@ def _participation_rows(report: ProviderMatchDetails) -> list[dict[str, Any]]:
         for person in side.bench:
             add_person(side.external_id, person, bench=True)
 
+    def participation_key(team_id: str | None, external_id: str) -> tuple[str, str]:
+        if team_id:
+            return (team_id, external_id)
+        existing = [key for key in players if key[1] == external_id]
+        return existing[0] if len(existing) == 1 else ("", external_id)
+
     for event in report.substitutions:
         team_id = event.team_external_id
         if event.player_in_external_id:
-            key = (team_id or "", event.player_in_external_id)
+            key = participation_key(team_id, event.player_in_external_id)
             row = players.setdefault(
                 key,
                 {
@@ -71,7 +77,7 @@ def _participation_rows(report: ProviderMatchDetails) -> list[dict[str, Any]]:
             )
             row["appeared"] = True
         if event.player_out_external_id:
-            key = (team_id or "", event.player_out_external_id)
+            key = participation_key(team_id, event.player_out_external_id)
             row = players.setdefault(
                 key,
                 {
