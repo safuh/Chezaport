@@ -35,9 +35,6 @@ from chezaport.sports.models import (
     TeamMembership,
     Venue,
 )
-from chezaport.sports.services.match_report_persistence import (
-    replace_canonical_fixture_report,
-)
 from chezaport.sports.services.analytics import (
     calculate_competition_season_comparison,
     calculate_competition_statistics,
@@ -46,6 +43,9 @@ from chezaport.sports.services.analytics import (
     calculate_team_form,
     calculate_team_season_comparison,
     calculate_team_season_statistics,
+)
+from chezaport.sports.services.match_report_persistence import (
+    replace_canonical_fixture_report,
 )
 
 router = APIRouter(tags=["sports"])
