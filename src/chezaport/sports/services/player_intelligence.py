@@ -8,11 +8,13 @@ from a player's current squad alone.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
 from sqlalchemy import or_, select
+from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from chezaport.sports.models import (
@@ -401,8 +403,8 @@ async def build_team_player_contributions(
     if season_id is not None:
         fixture_statement = fixture_statement.where(Fixture.season_id == season_id)
 
-    participation_rows = []
-    event_rows = []
+    participation_rows: Sequence[Row[tuple[FixturePlayerParticipation, Fixture]]] = ()
+    event_rows: Sequence[Row[tuple[FixtureMatchEvent, Fixture]]] = ()
     if team_mapping is not None:
         participation_rows = (
             await session.execute(
@@ -472,10 +474,13 @@ async def build_team_player_contributions(
         participation_team_by_fixture_player.add((fixture.id, row.player_external_id))
         stats_by_player.setdefault(player_id, _Stats()).add_participation(row)
 
+    team_external_id = team_mapping.external_id if team_mapping is not None else None
     for event, fixture in event_rows:
+        if team_external_id is None:
+            continue
         event_team_external_id = event.payload.get("team_external_id")
         if event_team_external_id is not None:
-            belongs_to_team = str(event_team_external_id) == team_mapping.external_id
+            belongs_to_team = str(event_team_external_id) == team_external_id
         else:
             belongs_to_team = any(
                 (fixture.id, external_id) in participation_team_by_fixture_player
@@ -510,7 +515,7 @@ async def build_team_player_contributions(
                 event, fixture.id, external_id
             )
 
-    items = []
+    items: list[dict[str, Any]] = []
     for player_id, stats in stats_by_player.items():
         player = players.get(player_id)
         if player is None:
@@ -527,8 +532,8 @@ async def build_team_player_contributions(
             }
             for row in periods
         ]
-        for membership in membership_reads:
-            membership["team_name"] = team.name if team is not None else ""
+        for membership_read in membership_reads:
+            membership_read["team_name"] = team.name if team is not None else ""
         items.append(
             {
                 "player_id": player_id,
