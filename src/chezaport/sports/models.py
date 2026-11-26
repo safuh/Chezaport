@@ -382,7 +382,7 @@ class FixturePlayerParticipation(Base):
     provider: Mapped[str] = mapped_column(String(80), nullable=False)
     player_external_id: Mapped[str] = mapped_column(String(160), nullable=False)
     player_name: Mapped[str | None] = mapped_column(String(180), nullable=True)
-    team_external_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    team_external_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
     is_starter: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_bench: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     appeared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
