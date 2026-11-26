@@ -46,6 +46,7 @@ from chezaport.sports.services.analytics import (
     calculate_team_season_statistics,
 )
 from chezaport.sports.services.match_report_persistence import (
+    backfill_cached_fixture_reports,
     replace_canonical_fixture_report,
 )
 from chezaport.sports.services.player_intelligence import (
@@ -1240,45 +1241,9 @@ async def get_player_match_history(
         scoped_fixtures = scoped_fixtures.where(Fixture.season_id == season_id)
     scoped_fixture_ids = list((await session.scalars(scoped_fixtures)).all())
     if scoped_fixture_ids:
-        cached_snapshots = list(
-            (
-                await session.scalars(
-                    select(FixtureReportSnapshot).where(
-                        FixtureReportSnapshot.provider == provider,
-                        FixtureReportSnapshot.fixture_id.in_(scoped_fixture_ids),
-                    )
-                )
-            ).all()
+        await backfill_cached_fixture_reports(
+            session, provider=provider, fixture_ids=scoped_fixture_ids
         )
-        backfilled = False
-        for snapshot in cached_snapshots:
-            event_exists = await session.scalar(
-                select(FixtureMatchEvent.id)
-                .where(
-                    FixtureMatchEvent.provider == provider,
-                    FixtureMatchEvent.fixture_id == snapshot.fixture_id,
-                )
-                .limit(1)
-            )
-            participation_exists = await session.scalar(
-                select(FixturePlayerParticipation.id)
-                .where(
-                    FixturePlayerParticipation.provider == provider,
-                    FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
-                )
-                .limit(1)
-            )
-            if event_exists is None and participation_exists is None:
-                await replace_canonical_fixture_report(
-                    session,
-                    provider=provider,
-                    fixture_id=snapshot.fixture_id,
-                    report=ProviderMatchDetails.model_validate(snapshot.payload),
-                )
-                backfilled = True
-        if backfilled:
-            # Persist the one-time lazy materialization; closing this request session rolls back.
-            await session.commit()
 
     fixture_statement = select(Fixture).where(
         Fixture.id.in_(
@@ -1470,37 +1435,9 @@ async def get_player_statistics(
     appearances = starts = 0
     goals = assists = yellow_cards = red_cards = substitutions_in = substitutions_out = 0
     if identity is not None and fixture_ids:
-        # Backfill canonical rows from reports cached before this schema existed.
-        backfilled = False
-        for snapshot in snapshots:
-            existing = await session.scalar(
-                select(FixtureMatchEvent.id)
-                .where(
-                    FixtureMatchEvent.provider == provider,
-                    FixtureMatchEvent.fixture_id == snapshot.fixture_id,
-                )
-                .limit(1)
-            )
-            participation_exists = await session.scalar(
-                select(FixturePlayerParticipation.id)
-                .where(
-                    FixturePlayerParticipation.provider == provider,
-                    FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
-                )
-                .limit(1)
-            )
-            if existing is None and participation_exists is None:
-                cached_report = ProviderMatchDetails.model_validate(snapshot.payload)
-                await replace_canonical_fixture_report(
-                    session,
-                    provider=provider,
-                    fixture_id=snapshot.fixture_id,
-                    report=cached_report,
-                )
-                backfilled = True
-        if backfilled:
-            # Persist the one-time lazy materialization; closing this request session rolls back.
-            await session.commit()
+        await backfill_cached_fixture_reports(
+            session, provider=provider, fixture_ids=fixture_ids
+        )
         event_rows = list(
             (
                 await session.scalars(
@@ -1891,41 +1828,9 @@ async def competition_player_leaderboard(
         ).all()
     )
     if fixture_ids:
-        snapshots = list(
-            (
-                await session.scalars(
-                    select(FixtureReportSnapshot).where(
-                        FixtureReportSnapshot.provider == provider,
-                        FixtureReportSnapshot.fixture_id.in_(fixture_ids),
-                    )
-                )
-            ).all()
+        await backfill_cached_fixture_reports(
+            session, provider=provider, fixture_ids=fixture_ids
         )
-        for snapshot in snapshots:
-            event_exists = await session.scalar(
-                select(FixtureMatchEvent.id)
-                .where(
-                    FixtureMatchEvent.provider == provider,
-                    FixtureMatchEvent.fixture_id == snapshot.fixture_id,
-                )
-                .limit(1)
-            )
-            participation_exists = await session.scalar(
-                select(FixturePlayerParticipation.id)
-                .where(
-                    FixturePlayerParticipation.provider == provider,
-                    FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
-                )
-                .limit(1)
-            )
-            if event_exists is None and participation_exists is None:
-                await replace_canonical_fixture_report(
-                    session,
-                    provider=provider,
-                    fixture_id=snapshot.fixture_id,
-                    report=ProviderMatchDetails.model_validate(snapshot.payload),
-                )
-        await session.flush()
 
     mappings = list(
         (
