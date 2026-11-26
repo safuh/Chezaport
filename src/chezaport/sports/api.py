@@ -831,6 +831,28 @@ class PlayerMatchPage(BaseModel):
     offset: int
 
 
+class PlayerLeaderboardItem(BaseModel):
+    rank: int
+    player_id: str
+    player_name: str
+    position: str | None
+    appearances: int
+    starts: int
+    goals: int
+    assists: int
+    yellow_cards: int
+    red_cards: int
+
+
+class PlayerLeaderboardPage(BaseModel):
+    competition_id: str
+    season_id: str
+    metric: str
+    provider: str
+    provider_identity_coverage: int
+    items: list[PlayerLeaderboardItem]
+
+
 class SquadMemberRead(PlayerRead):
     membership_id: str
     joined_on: date | None
@@ -1657,6 +1679,181 @@ async def _validate_competition_season(
     season = await session.get(Season, season_id)
     if competition is None or season is None or season.competition_id != competition_id:
         raise HTTPException(status_code=404, detail="Competition season not found")
+
+
+@router.get(
+    "/competitions/{competition_id}/player-leaderboard",
+    response_model=PlayerLeaderboardPage,
+)
+async def competition_player_leaderboard(
+    competition_id: str,
+    session: SessionDep,
+    season_id: str,
+    metric: str = Query(default="goals", pattern="^(goals|assists|appearances)$"),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> PlayerLeaderboardPage:
+    """Rank provider-linked players using confirmed events and appearances."""
+    await _validate_competition_season(session, competition_id, season_id)
+    provider = "football-data-org"
+    fixture_ids = list(
+        (
+            await session.scalars(
+                select(Fixture.id).where(
+                    Fixture.competition_id == competition_id,
+                    Fixture.season_id == season_id,
+                )
+            )
+        ).all()
+    )
+    if fixture_ids:
+        snapshots = list(
+            (
+                await session.scalars(
+                    select(FixtureReportSnapshot).where(
+                        FixtureReportSnapshot.provider == provider,
+                        FixtureReportSnapshot.fixture_id.in_(fixture_ids),
+                    )
+                )
+            ).all()
+        )
+        for snapshot in snapshots:
+            event_exists = await session.scalar(
+                select(FixtureMatchEvent.id).where(
+                    FixtureMatchEvent.provider == provider,
+                    FixtureMatchEvent.fixture_id == snapshot.fixture_id,
+                ).limit(1)
+            )
+            participation_exists = await session.scalar(
+                select(FixturePlayerParticipation.id).where(
+                    FixturePlayerParticipation.provider == provider,
+                    FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
+                ).limit(1)
+            )
+            if event_exists is None and participation_exists is None:
+                await replace_canonical_fixture_report(
+                    session,
+                    provider=provider,
+                    fixture_id=snapshot.fixture_id,
+                    report=ProviderMatchDetails.model_validate(snapshot.payload),
+                )
+        await session.flush()
+
+    mappings = list(
+        (
+            await session.scalars(
+                select(ExternalIDMapping).where(
+                    ExternalIDMapping.provider == provider,
+                    ExternalIDMapping.entity_type == CanonicalEntityType.PLAYER.value,
+                )
+            )
+        ).all()
+    )
+    mapping_by_external = {row.external_id: row.entity_id for row in mappings}
+    player_ids = set(mapping_by_external.values())
+    players = (
+        list((await session.scalars(select(Player).where(Player.id.in_(player_ids)))).all())
+        if player_ids
+        else []
+    )
+    players_by_id = {player.id: player for player in players}
+    external_by_player = {row.entity_id: row.external_id for row in mappings}
+    event_rows = (
+        list(
+            (
+                await session.scalars(
+                    select(FixtureMatchEvent).where(
+                        FixtureMatchEvent.provider == provider,
+                        FixtureMatchEvent.fixture_id.in_(fixture_ids),
+                    )
+                )
+            ).all()
+        )
+        if fixture_ids
+        else []
+    )
+    participation_rows = (
+        list(
+            (
+                await session.scalars(
+                    select(FixturePlayerParticipation).where(
+                        FixturePlayerParticipation.provider == provider,
+                        FixturePlayerParticipation.fixture_id.in_(fixture_ids),
+                    )
+                )
+            ).all()
+        )
+        if fixture_ids
+        else []
+    )
+    totals: dict[str, dict[str, int]] = {
+        player_id: {
+            "appearances": 0,
+            "starts": 0,
+            "goals": 0,
+            "assists": 0,
+            "yellow_cards": 0,
+            "red_cards": 0,
+        }
+        for player_id in player_ids
+    }
+    appeared_fixtures: dict[str, set[str]] = {player_id: set() for player_id in player_ids}
+    started_fixtures: dict[str, set[str]] = {player_id: set() for player_id in player_ids}
+    for row in participation_rows:
+        player_id = mapping_by_external.get(row.player_external_id)
+        if player_id is None:
+            continue
+        if row.appeared:
+            appeared_fixtures[player_id].add(row.fixture_id)
+        if row.is_starter:
+            started_fixtures[player_id].add(row.fixture_id)
+    for event in event_rows:
+        player_id = mapping_by_external.get(event.player_external_id or "")
+        secondary_id = mapping_by_external.get(event.secondary_player_external_id or "")
+        if event.event_type == "goal":
+            if player_id in totals:
+                totals[player_id]["goals"] += 1
+            if secondary_id in totals:
+                totals[secondary_id]["assists"] += 1
+        elif event.event_type == "booking" and player_id in totals:
+            card = str(event.payload.get("card", "")).lower()
+            totals[player_id]["yellow_cards"] += "yellow" in card
+            totals[player_id]["red_cards"] += "red" in card
+    items: list[PlayerLeaderboardItem] = []
+    for player_id, player in players_by_id.items():
+        totals[player_id]["appearances"] = len(appeared_fixtures[player_id])
+        totals[player_id]["starts"] = len(started_fixtures[player_id])
+        values = totals[player_id]
+        if not any(values.values()):
+            continue
+        items.append(
+            PlayerLeaderboardItem(
+                rank=0,
+                player_id=player_id,
+                player_name=player.display_name,
+                position=player.position,
+                **values,
+            )
+        )
+    items.sort(
+        key=lambda item: (
+            -getattr(item, metric),
+            -item.goals,
+            -item.appearances,
+            item.player_name.casefold(),
+        )
+    )
+    ranked = [
+        item.model_copy(update={"rank": index})
+        for index, item in enumerate(items[:limit], start=1)
+    ]
+    return PlayerLeaderboardPage(
+        competition_id=competition_id,
+        season_id=season_id,
+        metric=metric,
+        provider=provider,
+        provider_identity_coverage=len(players_by_id),
+        items=ranked,
+    )
 
 
 @router.get("/competitions/{competition_id}/statistics")
