@@ -8,6 +8,7 @@ from datetime import date, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     Date,
@@ -307,3 +308,26 @@ class SportsSyncRun(Base):
     unchanged: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class FixtureReportSnapshot(Base):
+    """Latest normalized provider report, cached with source and fetch provenance.
+
+    Replacing a complete snapshot is idempotent and avoids inventing event IDs
+    when a provider only supplies minute/player details.
+    """
+
+    __tablename__ = "fixture_report_snapshots"
+    __table_args__ = (
+        UniqueConstraint("provider", "fixture_id", name="uq_fixture_report_provider_fixture"),
+        Index("ix_fixture_report_snapshots_fetched_at", "fetched_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_id)
+    fixture_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("fixtures.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    external_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

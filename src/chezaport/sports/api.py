@@ -4,17 +4,27 @@ from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from chezaport.sports.domain.enums import CanonicalEntityType
+from chezaport.sports.integrations.errors import (
+    ProviderConfigurationError,
+    ProviderRateLimitError,
+    ProviderUnavailableError,
+)
+from chezaport.sports.integrations.football_data_org import FootballDataOrgProvider
+from chezaport.sports.integrations.schemas import ProviderMatchDetails
 from chezaport.sports.models import (
     Competition,
     Country,
     ExternalIDMapping,
     Fixture,
+    FixtureReportSnapshot,
     Player,
     Season,
     Sport,
@@ -765,6 +775,25 @@ class PlayerDetailRead(PlayerRead):
     memberships: list[PlayerMembershipRead]
 
 
+class PlayerStatisticsRead(BaseModel):
+    player_id: str
+    competition_id: str | None
+    season_id: str | None
+    provider: str
+    provider_identity_linked: bool
+    fixtures_with_reports: int
+    appearances: int
+    starts: int
+    goals: int
+    assists: int
+    yellow_cards: int
+    red_cards: int
+    substitutions_in: int
+    substitutions_out: int
+    minutes_played: int | None = None
+    minutes_unavailable_reason: str | None = None
+
+
 class SquadMemberRead(PlayerRead):
     membership_id: str
     joined_on: date | None
@@ -1006,6 +1035,109 @@ async def get_player(player_id: str, session: SessionDep) -> PlayerDetailRead:
     )
 
 
+@router.get("/players/{player_id}/statistics", response_model=PlayerStatisticsRead)
+async def get_player_statistics(
+    player_id: str,
+    session: SessionDep,
+    competition_id: str | None = None,
+    season_id: str | None = None,
+) -> PlayerStatisticsRead:
+    """Aggregate only provider-confirmed player events and appearances.
+
+    Minutes are intentionally unavailable until the source supplies reliable
+    on/off-pitch timing; a starting lineup alone cannot establish playing time.
+    """
+    player = await session.get(Player, player_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail="Player not found")
+    if season_id is not None:
+        season = await session.get(Season, season_id)
+        if season is None or (competition_id and season.competition_id != competition_id):
+            raise HTTPException(status_code=404, detail="Competition season not found")
+        competition_id = season.competition_id
+
+    provider = "football-data-org"
+    identity = await session.scalar(
+        select(ExternalIDMapping).where(
+            ExternalIDMapping.provider == provider,
+            ExternalIDMapping.entity_type == CanonicalEntityType.PLAYER.value,
+            ExternalIDMapping.entity_id == player_id,
+        )
+    )
+    fixture_statement = select(Fixture.id)
+    if competition_id is not None:
+        fixture_statement = fixture_statement.where(Fixture.competition_id == competition_id)
+    if season_id is not None:
+        fixture_statement = fixture_statement.where(Fixture.season_id == season_id)
+    fixture_ids = list((await session.scalars(fixture_statement)).all())
+    snapshots = []
+    if fixture_ids:
+        snapshots = list(
+            (
+                await session.scalars(
+                    select(FixtureReportSnapshot).where(
+                        FixtureReportSnapshot.provider == provider,
+                        FixtureReportSnapshot.fixture_id.in_(fixture_ids),
+                    )
+                )
+            ).all()
+        )
+
+    appearances: set[str] = set()
+    starts: set[str] = set()
+    goals = assists = yellow_cards = red_cards = substitutions_in = substitutions_out = 0
+    if identity is not None:
+        external_id = identity.external_id
+        for snapshot in snapshots:
+            report = ProviderMatchDetails.model_validate(snapshot.payload)
+            fixture_id = snapshot.fixture_id
+            for side in (report.home_team, report.away_team):
+                if any(person.external_id == external_id for person in side.lineup):
+                    starts.add(fixture_id)
+                    appearances.add(fixture_id)
+            player_substitutions_in = sum(
+                event.player_in_external_id == external_id for event in report.substitutions
+            )
+            player_substitutions_out = sum(
+                event.player_out_external_id == external_id for event in report.substitutions
+            )
+            substitutions_in += player_substitutions_in
+            substitutions_out += player_substitutions_out
+            if player_substitutions_in or player_substitutions_out:
+                appearances.add(fixture_id)
+            goals += sum(event.scorer_external_id == external_id for event in report.goals)
+            assists += sum(event.assist_external_id == external_id for event in report.goals)
+            yellow_cards += sum(
+                event.player_external_id == external_id and "yellow" in event.card.lower()
+                for event in report.bookings
+            )
+            red_cards += sum(
+                event.player_external_id == external_id and "red" in event.card.lower()
+                for event in report.bookings
+            )
+
+    return PlayerStatisticsRead(
+        player_id=player_id,
+        competition_id=competition_id,
+        season_id=season_id,
+        provider=provider,
+        provider_identity_linked=identity is not None,
+        fixtures_with_reports=len(snapshots),
+        appearances=len(appearances),
+        starts=len(starts),
+        goals=goals,
+        assists=assists,
+        yellow_cards=yellow_cards,
+        red_cards=red_cards,
+        substitutions_in=substitutions_in,
+        substitutions_out=substitutions_out,
+        minutes_played=None,
+        minutes_unavailable_reason=(
+            "The provider report does not supply reliable player on/off-pitch timestamps."
+        ),
+    )
+
+
 @router.get("/teams/{team_id}/squad", response_model=SquadRead)
 async def team_squad(
     team_id: str,
@@ -1168,6 +1300,88 @@ async def get_fixture(fixture_id: str, session: SessionDep) -> FixtureDetailRead
         venue_name=venue_name,
         venue_city=venue_city,
     )
+
+
+@router.get("/fixtures/{fixture_id}/report", response_model=ProviderMatchDetails)
+async def get_fixture_report(
+    fixture_id: str,
+    request: Request,
+    session: SessionDep,
+    refresh: bool = Query(default=False),
+) -> ProviderMatchDetails:
+    """Return a cached normalized report, refreshing stale data on demand."""
+    fixture = await session.get(Fixture, fixture_id)
+    if fixture is None:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    provider_name = "football-data-org"
+    snapshot = await session.scalar(
+        select(FixtureReportSnapshot).where(
+            FixtureReportSnapshot.provider == provider_name,
+            FixtureReportSnapshot.fixture_id == fixture_id,
+        )
+    )
+    now = datetime.now(UTC)
+    if snapshot is not None and not refresh:
+        fetched_at = snapshot.fetched_at
+        if fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=UTC)
+        if now - fetched_at < timedelta(hours=6):
+            return ProviderMatchDetails.model_validate(snapshot.payload)
+
+    mapping = await session.scalar(
+        select(ExternalIDMapping).where(
+            ExternalIDMapping.provider == provider_name,
+            ExternalIDMapping.entity_type == CanonicalEntityType.FIXTURE.value,
+            ExternalIDMapping.entity_id == fixture_id,
+        )
+    )
+    if mapping is None:
+        if snapshot is not None:
+            return ProviderMatchDetails.model_validate(snapshot.payload)
+        raise HTTPException(status_code=404, detail="Fixture has no provider match identity")
+    settings = request.app.state.settings
+    token = settings.football_data_api_token
+    if not token:
+        if snapshot is not None:
+            return ProviderMatchDetails.model_validate(snapshot.payload)
+        raise HTTPException(status_code=503, detail="Match-report provider is not configured")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            provider = FootballDataOrgProvider(
+                token,
+                competition_codes=frozenset(settings.football_data_competition_codes),
+                client=client,
+            )
+            report = await provider.fetch_match_details(mapping.external_id)
+    except ProviderRateLimitError as exc:
+        raise HTTPException(
+            status_code=503, detail="Match-report provider rate limit reached"
+        ) from exc
+    except ProviderConfigurationError as exc:
+        raise HTTPException(
+            status_code=502, detail="Match-report provider rejected the request"
+        ) from exc
+    except ProviderUnavailableError as exc:
+        raise HTTPException(
+            status_code=503, detail="Match-report provider is temporarily unavailable"
+        ) from exc
+
+    payload = report.model_dump(mode="json")
+    if snapshot is None:
+        snapshot = FixtureReportSnapshot(
+            fixture_id=fixture_id,
+            provider=provider_name,
+            external_id=mapping.external_id,
+            payload=payload,
+            fetched_at=now,
+        )
+        session.add(snapshot)
+    else:
+        snapshot.external_id = mapping.external_id
+        snapshot.payload = payload
+        snapshot.fetched_at = now
+    await session.commit()
+    return report
 
 
 async def _validate_competition_season(
