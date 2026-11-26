@@ -181,7 +181,7 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
                     fixture_id=fixtures[0].id,
                     player_external_id="player-ben",
                     player_name="Ben Midfielder",
-                    team_external_id="team-alpha",
+                    team_external_id=None,
                     is_bench=True,
                     appeared=True,
                 ),
@@ -341,6 +341,7 @@ def test_player_career_and_team_contributions_respect_transfer_history(tmp_path)
     assert alpha_data["metric"] == "assists"
     assert alpha_data["membership_players"] == 3
     assert alpha_data["linked_players"] == 2
+    assert alpha_data["unattributed_provider_participations"] == 0
     assert alpha_data["items"][0]["player_id"] == ids["ben_id"]
     assert alpha_data["items"][0]["assists"] == 1
     assert any(item["player_id"] == ids["historical_only_id"] for item in alpha_data["items"])
