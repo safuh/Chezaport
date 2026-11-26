@@ -33,7 +33,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["fixture_id"], ["fixtures.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
-            "provider", "fixture_id", "source_key",
+            "provider",
+            "fixture_id",
+            "source_key",
             name="uq_fixture_match_events_provider_fixture_source",
         ),
     )
@@ -60,11 +62,15 @@ def upgrade() -> None:
         sa.Column("appeared", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("position", sa.String(length=80), nullable=True),
         sa.Column("shirt_number", sa.Integer(), nullable=True),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["fixture_id"], ["fixtures.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
-            "provider", "fixture_id", "player_external_id",
+            "provider",
+            "fixture_id",
+            "player_external_id",
             name="uq_fixture_player_participation_provider_fixture_player",
         ),
     )
