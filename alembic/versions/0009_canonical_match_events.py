@@ -27,7 +27,9 @@ def upgrade() -> None:
         sa.Column("player_external_id", sa.String(length=160), nullable=True),
         sa.Column("secondary_player_external_id", sa.String(length=160), nullable=True),
         sa.Column("payload", sa.JSON(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["fixture_id"], ["fixtures.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
@@ -79,8 +81,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_fixture_player_participation_fixture", table_name="fixture_player_participation")
-    op.drop_index("ix_fixture_player_participation_player", table_name="fixture_player_participation")
+    op.drop_index(
+        "ix_fixture_player_participation_fixture", table_name="fixture_player_participation"
+    )
+    op.drop_index(
+        "ix_fixture_player_participation_player", table_name="fixture_player_participation"
+    )
     op.drop_table("fixture_player_participation")
     op.drop_index("ix_fixture_match_events_player", table_name="fixture_match_events")
     op.drop_index("ix_fixture_match_events_fixture_type", table_name="fixture_match_events")
