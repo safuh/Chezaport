@@ -74,7 +74,7 @@ jobs:
           from pathlib import Path
 
           html = Path("src/chezaport/web/index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r"<script(?:\\s[^>]*)?>(.*?)</script>", html, re.IGNORECASE | re.DOTALL)
+          scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, re.IGNORECASE | re.DOTALL)
           if len(scripts) != 1:
               raise SystemExit(f"Expected one inline dashboard script, found {len(scripts)}")
           Path("/tmp/chezaport-dashboard.js").write_text(scripts[0], encoding="utf-8")
