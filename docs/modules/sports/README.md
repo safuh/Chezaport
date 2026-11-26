@@ -59,3 +59,11 @@ Player minutes are intentionally nullable: lineup and substitution events do
 not always provide reliable on/off-pitch timestamps. The public dashboard now exposes season player rankings and selectable match-by-match
 history. Provider identity coverage limits which canonical player profiles can
 appear in event leaderboards.
+
+Operational visibility is deliberately split by audience. The aggregate
+`GET /api/v1/ops/sync-freshness` and `GET /api/v1/ops/data-quality` summaries are
+public so visitors can understand source freshness and high-level integrity.
+Detailed sync history, affected-record issue lists, fixture reconciliation,
+provider-identity reconciliation, and explicit match-report refreshes require
+a validated sync-operator bearer token. The public dashboard does not request
+or display those internal diagnostics.
