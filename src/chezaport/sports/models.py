@@ -331,3 +331,63 @@ class FixtureReportSnapshot(Base):
     external_id: Mapped[str] = mapped_column(String(160), nullable=False)
     payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class FixtureMatchEvent(Base):
+    """Provider event normalized for stable, queryable match analytics."""
+
+    __tablename__ = "fixture_match_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider", "fixture_id", "source_key",
+            name="uq_fixture_match_events_provider_fixture_source",
+        ),
+        Index("ix_fixture_match_events_fixture_type", "fixture_id", "event_type"),
+        Index("ix_fixture_match_events_player", "provider", "player_external_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_id)
+    fixture_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("fixtures.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    source_key: Mapped[str] = mapped_column(String(220), nullable=False)
+    minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    player_external_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    secondary_player_external_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class FixturePlayerParticipation(Base):
+    """Provider-confirmed squad participation for one player in one fixture."""
+
+    __tablename__ = "fixture_player_participation"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider", "fixture_id", "player_external_id",
+            name="uq_fixture_player_participation_provider_fixture_player",
+        ),
+        Index("ix_fixture_player_participation_player", "provider", "player_external_id"),
+        Index("ix_fixture_player_participation_fixture", "fixture_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_id)
+    fixture_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("fixtures.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    player_external_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    player_name: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    team_external_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    is_starter: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_bench: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    appeared: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    position: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    shirt_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
