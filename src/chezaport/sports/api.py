@@ -48,6 +48,10 @@ from chezaport.sports.services.analytics import (
 from chezaport.sports.services.match_report_persistence import (
     replace_canonical_fixture_report,
 )
+from chezaport.sports.services.player_intelligence import (
+    build_player_career,
+    build_team_player_contributions,
+)
 
 router = APIRouter(tags=["sports"])
 _bearer = HTTPBearer(auto_error=False)
@@ -799,6 +803,81 @@ class PlayerDetailRead(PlayerRead):
     memberships: list[PlayerMembershipRead]
 
 
+class PlayerCareerStatLine(BaseModel):
+    appearances: int
+    starts: int
+    goals: int
+    assists: int
+    yellow_cards: int
+    red_cards: int
+    substitutions_in: int
+    substitutions_out: int
+
+
+class PlayerCareerTotals(PlayerCareerStatLine):
+    fixtures_with_reports: int
+
+
+class PlayerCareerCompetitionRead(PlayerCareerStatLine):
+    competition_id: str
+    competition_name: str
+    season_id: str
+    season_name: str
+
+
+class PlayerCareerClubRead(PlayerCareerStatLine):
+    team_id: str
+    team_name: str
+    membership_confirmed: bool
+    provider_team_linked: bool
+    membership_periods: list[PlayerMembershipRead]
+    competitions: list[PlayerCareerCompetitionRead]
+
+
+class PlayerCareerCoverage(BaseModel):
+    memberships: int
+    mapped_participations: int
+    unattributed_participations: int
+    unattributed_events: int
+    outside_membership_participations: int
+    outside_membership_events: int
+
+
+class PlayerCareerRead(BaseModel):
+    player_id: str
+    provider: str
+    provider_identity_linked: bool
+    totals: PlayerCareerTotals
+    clubs: list[PlayerCareerClubRead]
+    coverage: PlayerCareerCoverage
+
+
+class TeamPlayerContributionItem(PlayerCareerStatLine):
+    rank: int
+    player_id: str
+    player_name: str
+    position: str | None
+    membership_confirmed: bool
+    membership_periods: list[PlayerMembershipRead]
+
+
+class TeamPlayerContributionsPage(BaseModel):
+    team_id: str
+    provider: str
+    provider_team_linked: bool
+    competition_id: str | None
+    season_id: str | None
+    metric: str
+    linked_players: int
+    membership_players: int
+    unlinked_provider_players: int
+    unlinked_provider_events: int
+    items: list[TeamPlayerContributionItem]
+    total: int
+    limit: int
+    offset: int
+
+
 class PlayerStatisticsRead(BaseModel):
     player_id: str
     competition_id: str | None
@@ -1329,6 +1408,16 @@ async def get_player_match_history(
     )
 
 
+@router.get("/players/{player_id}/career", response_model=PlayerCareerRead)
+async def get_player_career(player_id: str, session: SessionDep) -> PlayerCareerRead:
+    """Return a player's historical clubs and provider-confirmed career record."""
+    player = await session.get(Player, player_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail="Player not found")
+    result = await build_player_career(session, player_id=player_id)
+    return PlayerCareerRead.model_validate(result)
+
+
 @router.get("/players/{player_id}/statistics", response_model=PlayerStatisticsRead)
 async def get_player_statistics(
     player_id: str,
@@ -1514,6 +1603,45 @@ async def team_squad(
         for player, membership in rows
     ]
     return SquadRead(team_id=team_id, as_of=effective_date, items=items, total=len(items))
+
+
+@router.get(
+    "/teams/{team_id}/player-contributions",
+    response_model=TeamPlayerContributionsPage,
+)
+async def get_team_player_contributions(
+    team_id: str,
+    session: SessionDep,
+    competition_id: str | None = None,
+    season_id: str | None = None,
+    metric: str = Query(
+        default="goals",
+        pattern="^(goals|assists|appearances|starts|yellow_cards|red_cards)$",
+    ),
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> TeamPlayerContributionsPage:
+    """Rank historical team contributors without assigning career totals to current clubs."""
+    team = await session.get(Team, team_id)
+    if team is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+    if season_id is not None:
+        season = await session.get(Season, season_id)
+        if season is None or (competition_id and season.competition_id != competition_id):
+            raise HTTPException(status_code=404, detail="Competition season not found")
+        competition_id = season.competition_id
+    if competition_id is not None and await session.get(Competition, competition_id) is None:
+        raise HTTPException(status_code=404, detail="Competition not found")
+    result = await build_team_player_contributions(
+        session,
+        team_id=team_id,
+        competition_id=competition_id,
+        season_id=season_id,
+        metric=metric,
+        limit=limit,
+        offset=offset,
+    )
+    return TeamPlayerContributionsPage.model_validate(result)
 
 
 @router.get("/fixtures", response_model=FixturePage)
