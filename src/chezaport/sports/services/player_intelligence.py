@@ -84,7 +84,6 @@ class _Stats:
 
 
 
-
 def _active_membership(periods: list[TeamMembership], on_date: date) -> bool:
     return any(
         (period.joined_on is None or period.joined_on <= on_date)
@@ -500,10 +499,10 @@ async def build_team_player_contributions(
             continue
         if row.team_external_id is None:
             periods = membership_by_player.get(player_id, [])
-            if (
-                team_id not in {fixture.home_team_id, fixture.away_team_id}
-                or not _active_membership(periods, fixture.kickoff_at.date())
-            ):
+            if team_id not in {
+                fixture.home_team_id,
+                fixture.away_team_id,
+            } or not _active_membership(periods, fixture.kickoff_at.date()):
                 unattributed_provider_participations += 1
                 continue
         linked_provider_players.add(player_id)
