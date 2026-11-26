@@ -1656,14 +1656,17 @@ async def get_fixture_report(
             FixtureReportSnapshot.fixture_id == fixture_id,
         )
     )
-    if not refresh:
-        if snapshot is None:
-            raise HTTPException(status_code=404, detail="No cached match report is available")
-        return ProviderMatchDetails.model_validate(snapshot.payload)
-
-    await _require_sync_operator(request, credentials)
-
     now = datetime.now(UTC)
+    if snapshot is not None and not refresh:
+        fetched_at = snapshot.fetched_at
+        if fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=UTC)
+        if now - fetched_at < timedelta(hours=6):
+            return ProviderMatchDetails.model_validate(snapshot.payload)
+
+    if refresh:
+        await _require_sync_operator(request, credentials)
+
     mapping = await session.scalar(
         select(ExternalIDMapping).where(
             ExternalIDMapping.provider == provider_name,
