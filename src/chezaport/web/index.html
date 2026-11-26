@@ -258,7 +258,7 @@
       if(!contributions.items?.length){
         empty(contributionTarget,'No provider-linked player contributions are available for this club yet.');
       }else{
-        const coverage=textElement('p','subtle',num(contributions.linked_players)+' linked players · '+num(contributions.unlinked_provider_players)+' provider identities not linked');
+        const coverage=textElement('p','subtle',num(contributions.linked_players)+' linked players · '+num(contributions.unlinked_provider_players)+' provider identities not linked · '+num(contributions.unattributed_provider_participations)+' unattributed appearances');
         const table=document.createElement('table');
         const head=document.createElement('thead');
         const header=document.createElement('tr');
