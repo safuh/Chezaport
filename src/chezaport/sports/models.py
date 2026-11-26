@@ -346,6 +346,9 @@ class FixtureMatchEvent(Base):
         ),
         Index("ix_fixture_match_events_fixture_type", "fixture_id", "event_type"),
         Index("ix_fixture_match_events_player", "provider", "player_external_id"),
+        Index(
+            "ix_fixture_match_events_secondary_player", "provider", "secondary_player_external_id"
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_id)
@@ -377,6 +380,9 @@ class FixturePlayerParticipation(Base):
         ),
         Index("ix_fixture_player_participation_player", "provider", "player_external_id"),
         Index("ix_fixture_player_participation_fixture", "fixture_id"),
+        Index(
+            "ix_fixture_player_participation_team", "provider", "team_external_id", "fixture_id"
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_id)
