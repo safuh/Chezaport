@@ -1110,6 +1110,45 @@ async def get_player_match_history(
             offset=offset,
         )
 
+    scoped_fixtures = select(Fixture.id)
+    if competition_id is not None:
+        scoped_fixtures = scoped_fixtures.where(Fixture.competition_id == competition_id)
+    if season_id is not None:
+        scoped_fixtures = scoped_fixtures.where(Fixture.season_id == season_id)
+    scoped_fixture_ids = list((await session.scalars(scoped_fixtures)).all())
+    if scoped_fixture_ids:
+        cached_snapshots = list(
+            (
+                await session.scalars(
+                    select(FixtureReportSnapshot).where(
+                        FixtureReportSnapshot.provider == provider,
+                        FixtureReportSnapshot.fixture_id.in_(scoped_fixture_ids),
+                    )
+                )
+            ).all()
+        )
+        for snapshot in cached_snapshots:
+            event_exists = await session.scalar(
+                select(FixtureMatchEvent.id).where(
+                    FixtureMatchEvent.provider == provider,
+                    FixtureMatchEvent.fixture_id == snapshot.fixture_id,
+                ).limit(1)
+            )
+            participation_exists = await session.scalar(
+                select(FixturePlayerParticipation.id).where(
+                    FixturePlayerParticipation.provider == provider,
+                    FixturePlayerParticipation.fixture_id == snapshot.fixture_id,
+                ).limit(1)
+            )
+            if event_exists is None and participation_exists is None:
+                await replace_canonical_fixture_report(
+                    session,
+                    provider=provider,
+                    fixture_id=snapshot.fixture_id,
+                    report=ProviderMatchDetails.model_validate(snapshot.payload),
+                )
+        await session.flush()
+
     fixture_statement = select(Fixture).where(
         Fixture.id.in_(
             select(FixturePlayerParticipation.fixture_id).where(
