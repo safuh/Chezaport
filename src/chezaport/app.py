@@ -23,7 +23,7 @@ from .core.errors import (
 )
 from .core.lifespan import lifespan
 from .core.logging import configure_logging
-from .core.middleware import RequestContextMiddleware
+from .core.middleware import RateLimitMiddleware, RequestContextMiddleware
 from .identity.composition import create_sqlalchemy_auth_application
 from .web.routes import router as web_router
 
@@ -64,6 +64,11 @@ def create_app(
     app.state.sync_operator_token_validator = sync_operator_token_validator
     app.state.admin_token_validator = admin_token_validator
 
+    app.add_middleware(
+        RateLimitMiddleware,
+        public_requests_per_minute=resolved.public_api_rate_limit_per_minute,
+        match_report_requests_per_minute=resolved.match_report_rate_limit_per_minute,
+    )
     app.add_middleware(RequestContextMiddleware)
     if resolved.cors_origins:
         app.add_middleware(
