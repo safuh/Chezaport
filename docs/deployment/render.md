@@ -87,6 +87,11 @@ factually correct.
 - The web command explicitly enables Uvicorn proxy-header handling and trusts
   forwarded client/protocol headers from Render ingress. Do not expose the
   container port directly or reuse this trust setting behind an untrusted proxy.
+- The application applies per-process fixed-window limits of 120 public API
+  requests/minute per client IP and 10 match-report requests/minute. Health
+  checks are exempt. This is a single-instance safeguard, not a distributed
+  quota: configure an edge rate limit before horizontal scaling or substantial
+  public traffic.
 - The public API is read-only. Aggregate data freshness and data-quality
   summaries are public; sync history, issue details, reconciliation previews,
   and explicit match-report refresh require a validated sync-operator token.
