@@ -125,9 +125,23 @@ References:
 
 ## Operations and recovery
 
-- Take an encrypted database backup before every schema-changing release.
-- Test restoring a backup into a separate database; a backup that has never been
-  restored is not a verified recovery plan.
+Render continuously backs up paid PostgreSQL instances for point-in-time
+recovery (PITR). The available recovery window depends on the Render workspace
+plan (currently three days on Hobby and seven days on Pro or higher); confirm
+the actual window in the database's Recovery page. PITR creates a separate
+recovery database rather than overwriting the original, so validate the
+recovered data before switching application connections.
+
+Render also supports on-demand logical exports. These are retained in Render
+for seven days after creation; download required exports and store them in
+encrypted, durable storage outside Render for longer-term retention.
+
+- Create an on-demand logical export before every schema-changing release.
+- Test restoring an export into a separate database; a backup that has never
+  been restored is not a verified recovery plan.
+- Do not delete the original database until the replacement is validated and
+  every service has been switched. Deleting a Render Postgres instance also
+  deletes its recovery history and stored exports.
 - Keep migrations backward-compatible with the currently running application
   when deploying multiple instances.
 - If a release fails its pre-deploy step or health check, do not route traffic to
