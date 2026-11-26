@@ -1435,9 +1435,7 @@ async def get_player_statistics(
     appearances = starts = 0
     goals = assists = yellow_cards = red_cards = substitutions_in = substitutions_out = 0
     if identity is not None and fixture_ids:
-        await backfill_cached_fixture_reports(
-            session, provider=provider, fixture_ids=fixture_ids
-        )
+        await backfill_cached_fixture_reports(session, provider=provider, fixture_ids=fixture_ids)
         event_rows = list(
             (
                 await session.scalars(
@@ -1828,9 +1826,7 @@ async def competition_player_leaderboard(
         ).all()
     )
     if fixture_ids:
-        await backfill_cached_fixture_reports(
-            session, provider=provider, fixture_ids=fixture_ids
-        )
+        await backfill_cached_fixture_reports(session, provider=provider, fixture_ids=fixture_ids)
 
     mappings = list(
         (
