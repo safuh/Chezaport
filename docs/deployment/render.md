@@ -84,6 +84,9 @@ factually correct.
   headers. The dashboard receives a restrictive same-origin CSP (with inline
   script/style allowances retained for the current single-file frontend);
   HSTS is sent on HTTPS requests.
+- The web command explicitly enables Uvicorn proxy-header handling and trusts
+  forwarded client/protocol headers from Render ingress. Do not expose the
+  container port directly or reuse this trust setting behind an untrusted proxy.
 - The public API is read-only. Aggregate data freshness and data-quality
   summaries are public; sync history, issue details, reconciliation previews,
   and explicit match-report refresh require a validated sync-operator token.
