@@ -48,17 +48,28 @@ Read endpoints:
   `refresh=true` cache-bypass action requires a valid sync-operator bearer token.
 - `GET /api/v1/players/{player_id}/statistics` aggregates confirmed events
   and appearances, optionally scoped by `competition_id` and `season_id`.
+- `GET /api/v1/players/{player_id}/career` returns chronological club
+  registrations, career totals, and per-club competition/season breakdowns.
+  Provider-confirmed team identities are used for attribution; missing or
+  contradictory membership evidence is surfaced in coverage fields rather
+  than silently assigned to a current club.
 - `GET /api/v1/players/{player_id}/matches` returns paginated match-by-match
   participation and event totals. Bench selection is visible but is not
   counted as an appearance unless the player entered the match or started.
+- `GET /api/v1/teams/{team_id}/player-contributions` ranks historical team
+  contributors by goals, assists, appearances, starts, or cards. Optional
+  `competition_id` and `season_id` filters are supported, together with
+  pagination. Historical membership players remain visible even when provider
+  identity linkage is unavailable.
 - `GET /api/v1/competitions/{competition_id}/player-leaderboard` ranks
   provider-linked players by goals, assists, or appearances for a required
   `season_id`. The `metric` parameter defaults to `goals`.
 
 Player minutes are intentionally nullable: lineup and substitution events do
-not always provide reliable on/off-pitch timestamps. The public dashboard now exposes season player rankings and selectable match-by-match
-history. Provider identity coverage limits which canonical player profiles can
-appear in event leaderboards.
+not always provide reliable on/off-pitch timestamps. The public dashboard now exposes season player rankings, selectable match-by-match
+history, player career summaries, and team contribution rankings. Provider
+identity coverage limits which canonical player profiles can appear in event
+leaderboards.
 
 Operational visibility is deliberately split by audience. The aggregate
 `GET /api/v1/ops/sync-freshness` and `GET /api/v1/ops/data-quality` summaries are
