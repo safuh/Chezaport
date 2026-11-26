@@ -1,0 +1,77 @@
+# Production topology: public API/dashboard, isolated sync worker, managed PostgreSQL.
+# No visitor accounts or sign-in are required for the public read-only release.
+services:
+  - type: web
+    name: chezaport-web
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./docker/Dockerfile
+    dockerContext: .
+    dockerCommand: uvicorn chezaport.app:create_app --factory --host 0.0.0.0 --port 8000
+    preDeployCommand: alembic upgrade head
+    healthCheckPath: /api/health/ready
+    maxShutdownDelaySeconds: 120
+    autoDeployTrigger: commit
+    envVars:
+      - key: APP_NAME
+        value: ChezaPort
+      - key: APP_VERSION
+        value: 0.1.0
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_JSON
+        value: "true"
+      - key: PORT
+        value: "8000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chezaport-db
+          property: connectionString
+      - key: FOOTBALL_DATA_API_TOKEN
+        sync: false
+      - key: FOOTBALL_DATA_COMPETITION_CODES
+        value: '["PL"]'
+      - key: CORS_ORIGINS
+        value: "[]"
+      - key: CORS_ALLOW_CREDENTIALS
+        value: "false"
+
+  - type: worker
+    name: chezaport-sync
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: ./docker/Dockerfile
+    dockerContext: .
+    dockerCommand: python -m chezaport.sports.sync --watch --interval-seconds 120
+    maxShutdownDelaySeconds: 120
+    autoDeployTrigger: commit
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_JSON
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chezaport-db
+          property: connectionString
+      - key: FOOTBALL_DATA_API_TOKEN
+        fromService:
+          name: chezaport-web
+          type: web
+          envVarKey: FOOTBALL_DATA_API_TOKEN
+      - key: FOOTBALL_DATA_COMPETITION_CODES
+        value: '["PL"]'
+
+databases:
+  - name: chezaport-db
+    region: frankfurt
+    plan: basic-256mb
+    postgresMajorVersion: "17"
+    databaseName: chezaport
+    user: chezaport
