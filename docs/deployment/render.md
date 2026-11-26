@@ -79,6 +79,11 @@ factually correct.
   frontend is introduced, set only its exact HTTPS origin.
 - Keep provider credentials server-side. Do not expose them through API
   responses, HTML, JavaScript, logs, or screenshots.
+- Responses include `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, and same-origin isolation
+  headers. The dashboard receives a restrictive same-origin CSP (with inline
+  script/style allowances retained for the current single-file frontend);
+  HSTS is sent on HTTPS requests.
 - The public API is read-only. Aggregate data freshness and data-quality
   summaries are public; sync history, issue details, reconciliation previews,
   and explicit match-report refresh require a validated sync-operator token.
