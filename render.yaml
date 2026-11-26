@@ -39,6 +39,10 @@ services:
         value: "[]"
       - key: CORS_ALLOW_CREDENTIALS
         value: "false"
+      - key: PUBLIC_API_RATE_LIMIT_PER_MINUTE
+        value: "120"
+      - key: MATCH_REPORT_RATE_LIMIT_PER_MINUTE
+        value: "10"
 
   - type: worker
     name: chezaport-sync
