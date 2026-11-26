@@ -155,8 +155,17 @@ def test_player_statistics_aggregate_report_events_without_counting_bench_only(t
             f"/api/v1/players/{player_id}/statistics",
             params={"competition_id": competition_id, "season_id": season_id},
         )
+        history = client.get(
+            f"/api/v1/players/{player_id}/matches",
+            params={"competition_id": competition_id, "season_id": season_id},
+        )
+        history_page = client.get(
+            f"/api/v1/players/{player_id}/matches",
+            params={"competition_id": competition_id, "season_id": season_id, "limit": 1},
+        )
         substitute_stats = client.get(f"/api/v1/players/{bench_only_id}/statistics")
         no_identity = client.get(f"/api/v1/players/{unlinked_player_id}/statistics")
+        unlinked_history = client.get(f"/api/v1/players/{unlinked_player_id}/matches")
         missing = client.get("/api/v1/players/not-a-player/statistics")
 
     assert response.status_code == 200
@@ -171,6 +180,23 @@ def test_player_statistics_aggregate_report_events_without_counting_bench_only(t
     assert stats["red_cards"] == 1
     assert stats["substitutions_out"] == 1
     assert stats["minutes_played"] is None
+    assert history.status_code == 200
+    history_data = history.json()
+    assert history_data["provider_identity_linked"] is True
+    assert history_data["total"] == 1
+    assert len(history_data["items"]) == 1
+    match = history_data["items"][0]
+    assert match["appeared"] is True
+    assert match["started"] is True
+    assert match["goals"] == 2
+    assert match["yellow_cards"] == 1
+    assert match["red_cards"] == 1
+    assert match["minutes_played"] is None
+    assert history_page.json()["total"] == 1
+    assert len(history_page.json()["items"]) == 1
+    assert unlinked_history.status_code == 200
+    assert unlinked_history.json()["provider_identity_linked"] is False
+    assert unlinked_history.json()["items"] == []
     assert substitute_stats.status_code == 200
     assert substitute_stats.json()["assists"] == 1
     assert substitute_stats.json()["substitutions_in"] == 1
