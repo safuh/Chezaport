@@ -43,8 +43,9 @@ analytics are requested.
 
 Read endpoints:
 
-- `GET /api/v1/fixtures/{fixture_id}/report` returns the cached report;
-  `refresh=true` requests a provider refresh.
+- `GET /api/v1/fixtures/{fixture_id}/report` returns the cached report without
+  triggering provider requests. `refresh=true` is a protected operator action
+  and requires a valid sync-operator bearer token.
 - `GET /api/v1/players/{player_id}/statistics` aggregates confirmed events
   and appearances, optionally scoped by `competition_id` and `season_id`.
 - `GET /api/v1/players/{player_id}/matches` returns paginated match-by-match
